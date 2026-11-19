@@ -51,6 +51,13 @@ public class ProjectService {
         return getOwned(ownerId, projectId);
     }
 
+    /** 校验当前身份及项目归属，返回已验证的内部用户 ID。 */
+    public long requireOwnedProject(String subject, long projectId) {
+        long ownerId = activeUserId(subject);
+        getOwned(ownerId, projectId);
+        return ownerId;
+    }
+
     private long activeUserId(String subject) {
         long ownerId = userId(subject);
         if (!projects.isActiveUser(ownerId)) {

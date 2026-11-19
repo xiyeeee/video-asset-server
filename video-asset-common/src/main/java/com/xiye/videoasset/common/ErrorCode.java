@@ -11,6 +11,10 @@ public enum ErrorCode {
     RATE_LIMITED(429, "操作过于频繁，请稍后重试"),
     MAIL_UNAVAILABLE(503, "邮件服务暂不可用，请稍后重试"),
     AUTH_UNAVAILABLE(503, "认证服务暂不可用，请稍后重试"),
+    INVALID_VIDEO(400, "请选择有效的 MP4 视频文件"),
+    VIDEO_TOO_LARGE(413, "视频文件超过上传大小限制"),
+    VIDEO_UPLOAD_CONFLICT(409, "上传标识与已有视频不匹配"),
+    VIDEO_STORAGE_UNAVAILABLE(503, "视频存储暂不可用，请稍后重试"),
     INTERNAL_ERROR(500, "Internal server error");
 
     private final int status;

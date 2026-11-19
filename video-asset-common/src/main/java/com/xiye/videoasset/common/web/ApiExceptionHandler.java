@@ -13,6 +13,8 @@ import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -29,10 +31,16 @@ public class ApiExceptionHandler {
             ServletRequestBindingException.class,
             HttpMessageNotReadableException.class,
             MethodArgumentTypeMismatchException.class,
+            MissingServletRequestPartException.class,
             ConstraintViolationException.class
     })
     ResponseEntity<Result<Void>> invalidRequest(Exception exception) {
         return respond(ErrorCode.INVALID_REQUEST);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<Result<Void>> uploadTooLarge() {
+        return respond(ErrorCode.VIDEO_TOO_LARGE);
     }
 
     @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})

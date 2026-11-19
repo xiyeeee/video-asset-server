@@ -36,7 +36,7 @@ spring:
               '[/**]':
                 allowed-origins: ${GATEWAY_ALLOWED_ORIGINS:}
                 allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
-                allowed-headers: [Authorization, Content-Type, Accept]
+                allowed-headers: [Authorization, Content-Type, Accept, Idempotency-Key]
                 exposed-headers: [Retry-After]
                 max-age: 3600
           routes:
@@ -45,6 +45,15 @@ spring:
               predicates:
                 - Path=/api/auth/**
               filters: [StripPrefix=2]
+            - id: media-episode-upload
+              order: -1
+              uri: lb://video-asset-media
+              predicates:
+                - Path=/api/media/v1/projects/{projectId}/episodes
+                - Method=POST
+              filters: [StripPrefix=2]
+              metadata:
+                response-timeout: ${VIDEO_UPLOAD_GATEWAY_TIMEOUT_MS:300000}
             - id: media
               uri: lb://video-asset-media
               predicates: [Path=/api/media/**]
