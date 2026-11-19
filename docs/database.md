@@ -15,9 +15,11 @@ MySQL 8.4 中业务 schema 为 `video_asset`，默认编码是 `utf8mb4`，排�
 
 通过 [集数 API](episodes-api.md) 查看 V4 原视频关联、幂等字段和 Media 表权限。
 
+V5 为 `ai_task` 增加投递时间、投递次数、执行期限和结果素材 ID。首帧分镜复用 `asset`，AI 运行账号授权见 [首帧解析 API](analysis-api.md)。
+
 外键使用 `ON DELETE RESTRICT`。素材和对话使用复合外键确保集、角色和项目归属一致。审计时间使用 UTC 会话下的 `TIMESTAMP(6)`，由数据库设置创建及更新时间，接口层使用 Java `Instant` 并输出 ISO 8601 UTC 时间。媒体偏移量使用从集起点计算的非负整数毫秒。
 
-MyBatis-Plus 已启用 Mapper 包扫描和 MySQL 分页，上限 100。逻辑删除值为 0 和 1，后续仅在 `sys_user`、`project`、`asset`、`character` 的实体标记 `@TableLogic`。逻辑删除保留唯一键，用户名和对象 key 的复用需由后续业务显式定义。按所有权给未来 Media、AI 的运行账号分配所需表权限。
+MyBatis-Plus 已启用 Mapper 包扫描和 MySQL 分页，上限 100。逻辑删除值为 0 和 1，后续仅在 `sys_user`、`project`、`asset`、`character` 的实体标记 `@TableLogic`。逻辑删除保留唯一键，用户名和对象 key 的复用需由后续业务显式定义。
 
 ```bash
 docker compose exec -T mysql sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot video_asset -e "SHOW TABLES; SELECT version, description, success FROM flyway_schema_history;"'

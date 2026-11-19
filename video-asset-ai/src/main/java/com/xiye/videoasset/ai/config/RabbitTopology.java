@@ -12,10 +12,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-class RabbitTopology {
-    static final String TASK_EXCHANGE = "video.asset.ai";
-    static final String TASK_QUEUE = "video.asset.ai.task";
-    static final String TASK_ROUTING_KEY = "task.requested";
+public class RabbitTopology {
+    public static final String TASK_EXCHANGE = "video.asset.ai";
+    public static final String TASK_QUEUE = "video.asset.ai.task";
+    public static final String TASK_ROUTING_KEY = "task.requested";
     static final String DEAD_LETTER_EXCHANGE = "video.asset.ai.dlx";
     static final String DEAD_LETTER_QUEUE = "video.asset.ai.task.dead";
     static final String DEAD_LETTER_ROUTING_KEY = "task.dead";
@@ -32,7 +32,7 @@ class RabbitTopology {
                 .build();
         DirectExchange deadLetterExchange = new DirectExchange(DEAD_LETTER_EXCHANGE);
         Queue deadLetterQueue = QueueBuilder.durable(DEAD_LETTER_QUEUE).quorum().build();
-                return new Declarables(
+        return new Declarables(
                 taskExchange,
                 taskQueue,
                 deadLetterExchange,

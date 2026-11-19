@@ -25,3 +25,5 @@ docker compose ps -a
 项目管理接口见 [项目管理 API](docs/projects-api.md)，前端联调说明见 [提示词 v1.0.3](docs/prompts/v1.0.3.md)。
 
 单集上传、集数列表和预览见 [集数 API](docs/episodes-api.md) 与 [前端对接提示词 v1.0.4](docs/prompts/v1.0.4.md)。
+
+提交首帧解析、查询任务和预览分镜见 [首帧解析 API](docs/analysis-api.md) 与 [前端对接文档 v1.0.5](docs/prompts/v1.0.5.md)。
