@@ -1,6 +1,6 @@
 # 数据库与迁移
 
-MySQL 8.4 中业务 schema 为 `video_asset`，默认编码是 `utf8mb4`，排序规则为 `utf8mb4_0900_ai_ci`。空卷初始化仅创建数据库、账号及 Nacos 表，Auth 的 Flyway 按版本执行 `db/migration/V1__initial_schema.sql`。业务账号 `video_asset_auth` 当前仅有业务库 SELECT。迁移账号 `video_asset_migration` 只管理业务 schema。生产运行时以 `MYSQL_JDBC_URL`、`MYSQL_AUTH_USERNAME`、`MYSQL_AUTH_PASSWORD` 配置连接。建议部署时让一个 Auth 实例以迁移账号执行 Flyway，再令普通副本使用 `FLYWAY_ENABLED=false`。生产 JDBC 连接由部署方配置 TLS 和 UTC 会话。
+MySQL 8.4 中业务 schema 为 `video_asset`，默认编码是 `utf8mb4`，排序规则为 `utf8mb4_0900_ai_ci`。空卷初始化仅创建数据库、账号及 Nacos 表，Auth 的 Flyway 按版本执行 `db/migration/` 下的迁移。Auth 的运行账号权限见 [认证接口](auth-api.md)，Media 的运行账号和项目表索引见 [项目管理 API](projects-api.md)。迁移账号 `video_asset_migration` 只管理业务 schema。生产运行时以 `MYSQL_JDBC_URL`、`MYSQL_AUTH_USERNAME`、`MYSQL_AUTH_PASSWORD` 配置连接。建议部署时让一个 Auth 实例以迁移账号执行 Flyway，再令普通副本使用 `FLYWAY_ENABLED=false`。生产 JDBC 连接由部署方配置 TLS 和 UTC 会话。
 
 | 表 | 用途与主要约束 |
 | --- | --- |

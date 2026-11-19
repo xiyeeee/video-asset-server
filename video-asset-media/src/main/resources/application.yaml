@@ -7,6 +7,13 @@ server:
 spring:
   application:
     name: video-asset-media
+  datasource:
+    url: ${MYSQL_MEDIA_JDBC_URL:${MYSQL_JDBC_URL:}}
+    username: ${MYSQL_MEDIA_USERNAME:video_asset_media}
+    password: ${MYSQL_MEDIA_PASSWORD}
+    hikari:
+      connection-timeout: 3000
+      maximum-pool-size: 8
   cloud:
     nacos:
       discovery:

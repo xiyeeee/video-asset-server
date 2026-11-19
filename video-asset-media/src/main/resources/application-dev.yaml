@@ -6,6 +6,8 @@ spring:
     activate:
       on-profile: "dev & !prod"
     import: "optional:nacos:video-asset-media.yaml?group=${NACOS_CONFIG_GROUP:VIDEO_ASSET}&refreshEnabled=false"
+  datasource:
+    url: "${MYSQL_MEDIA_JDBC_URL:${MYSQL_JDBC_URL:jdbc:mysql://127.0.0.1:${MYSQL_PORT:3306}/video_asset?sslMode=DISABLED&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}}"
   cloud:
     nacos:
       discovery:
