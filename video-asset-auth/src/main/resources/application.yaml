@@ -1,0 +1,84 @@
+server:
+  port: ${AUTH_PORT:8081}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+spring:
+  application:
+    name: video-asset-auth
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR}
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_DISCOVERY_GROUP:VIDEO_ASSET}
+        ip: ${SERVICE_ADVERTISE_IP:}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR}
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+        namespace: ${NACOS_NAMESPACE:}
+  data:
+    redis:
+      client-type: lettuce
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      connect-timeout: 2s
+      timeout: 2s
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:true}
+  datasource:
+    url: ${MYSQL_JDBC_URL}
+    username: ${MYSQL_AUTH_USERNAME:video_asset_auth}
+    password: ${MYSQL_AUTH_PASSWORD}
+    hikari:
+      connection-timeout: 3000
+      maximum-pool-size: 8
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    url: ${MYSQL_JDBC_URL}
+    user: ${MYSQL_MIGRATION_USERNAME:video_asset_migration}
+    password: ${MYSQL_MIGRATION_PASSWORD:}
+    clean-disabled: true
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      logic-not-delete-value: "0"
+      logic-delete-value: "1"
+
+logging:
+  level:
+    com.xiye.videoasset.auth.persistence.mapper: INFO
+
+spring.jackson.time-zone: UTC
+
+app:
+  jwt:
+    issuer: ${JWT_ISSUER}
+    audience: ${JWT_AUDIENCE}
+    public-key-location: ${JWT_PUBLIC_KEY_LOCATION}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: "!dev | prod"
+    import: "nacos:video-asset-auth.yaml?group=${NACOS_CONFIG_GROUP:VIDEO_ASSET}&refreshEnabled=false"

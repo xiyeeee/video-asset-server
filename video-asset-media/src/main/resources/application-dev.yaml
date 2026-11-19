@@ -1,0 +1,19 @@
+server:
+  address: 127.0.0.1
+
+spring:
+  config:
+    activate:
+      on-profile: "dev & !prod"
+    import: "optional:nacos:video-asset-media.yaml?group=${NACOS_CONFIG_GROUP:VIDEO_ASSET}&refreshEnabled=false"
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:${NACOS_PORT:8848}}
+        ip: ${SERVICE_ADVERTISE_IP:127.0.0.1}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:${NACOS_PORT:8848}}
+
+app:
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:${MINIO_PORT:9000}}

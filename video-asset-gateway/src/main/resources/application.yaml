@@ -1,0 +1,71 @@
+server:
+  port: ${GATEWAY_PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+spring:
+  application:
+    name: video-asset-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR}
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_DISCOVERY_GROUP:VIDEO_ASSET}
+        ip: ${SERVICE_ADVERTISE_IP:}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR}
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+        namespace: ${NACOS_NAMESPACE:}
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: false
+          httpclient:
+            connect-timeout: 3000
+            response-timeout: 10s
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              '[/**]':
+                allowed-origins: ${GATEWAY_ALLOWED_ORIGINS:}
+                allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+                allowed-headers: [Authorization, Content-Type, Accept]
+                max-age: 3600
+          routes:
+            - id: auth
+              uri: lb://video-asset-auth
+              predicates:
+                - Path=/api/auth/**
+              filters: [StripPrefix=2]
+            - id: media
+              uri: lb://video-asset-media
+              predicates: [Path=/api/media/**]
+              filters: [StripPrefix=2]
+            - id: ai
+              uri: lb://video-asset-ai
+              predicates: [Path=/api/ai/**]
+              filters: [StripPrefix=2]
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: "!dev | prod"
+    import: "nacos:video-asset-gateway.yaml?group=${NACOS_CONFIG_GROUP:VIDEO_ASSET}&refreshEnabled=false"

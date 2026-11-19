@@ -1,0 +1,76 @@
+server:
+  port: ${AI_PORT:8083}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+spring:
+  application:
+    name: video-asset-ai
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR}
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_DISCOVERY_GROUP:VIDEO_ASSET}
+        ip: ${SERVICE_ADVERTISE_IP:}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR}
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+        namespace: ${NACOS_NAMESPACE:}
+  data:
+    redis:
+      client-type: lettuce
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      connect-timeout: 2s
+      timeout: 2s
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:true}
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5671}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: ${RABBITMQ_VHOST:video_asset}
+    ssl:
+      enabled: ${RABBITMQ_SSL_ENABLED:true}
+    connection-timeout: 3s
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+      retry:
+        enabled: false
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: false
+
+app:
+  jwt:
+    issuer: ${JWT_ISSUER}
+    audience: ${JWT_AUDIENCE}
+    public-key-location: ${JWT_PUBLIC_KEY_LOCATION}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: "!dev | prod"
+    import: "nacos:video-asset-ai.yaml?group=${NACOS_CONFIG_GROUP:VIDEO_ASSET}&refreshEnabled=false"

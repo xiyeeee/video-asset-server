@@ -1,0 +1,50 @@
+server:
+  port: ${MEDIA_PORT:8082}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+spring:
+  application:
+    name: video-asset-media
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR}
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_DISCOVERY_GROUP:VIDEO_ASSET}
+        ip: ${SERVICE_ADVERTISE_IP:}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR}
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+        namespace: ${NACOS_NAMESPACE:}
+
+app:
+  jwt:
+    issuer: ${JWT_ISSUER}
+    audience: ${JWT_AUDIENCE}
+    public-key-location: ${JWT_PUBLIC_KEY_LOCATION}
+  minio:
+    endpoint: ${MINIO_ENDPOINT}
+    access-key: ${MINIO_ACCESS_KEY}
+    secret-key: ${MINIO_SECRET_KEY}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: "!dev | prod"
+    import: "nacos:video-asset-media.yaml?group=${NACOS_CONFIG_GROUP:VIDEO_ASSET}&refreshEnabled=false"

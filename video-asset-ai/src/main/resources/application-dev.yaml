@@ -1,0 +1,25 @@
+server:
+  address: 127.0.0.1
+
+spring:
+  config:
+    activate:
+      on-profile: "dev & !prod"
+    import: "optional:nacos:video-asset-ai.yaml?group=${NACOS_CONFIG_GROUP:VIDEO_ASSET}&refreshEnabled=false"
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:${NACOS_PORT:8848}}
+        ip: ${SERVICE_ADVERTISE_IP:127.0.0.1}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:${NACOS_PORT:8848}}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    ssl:
+      enabled: ${RABBITMQ_SSL_ENABLED:false}

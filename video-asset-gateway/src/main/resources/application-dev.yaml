@@ -1,0 +1,22 @@
+server:
+  address: 127.0.0.1
+
+spring:
+  config:
+    activate:
+      on-profile: "dev & !prod"
+    import: "optional:nacos:video-asset-gateway.yaml?group=${NACOS_CONFIG_GROUP:VIDEO_ASSET}&refreshEnabled=false"
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:${NACOS_PORT:8848}}
+        ip: ${SERVICE_ADVERTISE_IP:127.0.0.1}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:${NACOS_PORT:8848}}
+    gateway:
+      server:
+        webflux:
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowed-origins: ${GATEWAY_ALLOWED_ORIGINS:http://localhost:5173}

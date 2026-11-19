@@ -1,0 +1,88 @@
+package com.xiye.videoasset.common.security;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiye.videoasset.common.ApiPaths;
+import com.xiye.videoasset.common.ErrorCode;
+import com.xiye.videoasset.common.Result;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.security.interfaces.RSAPublicKey;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.converter.RsaKeyConverters;
+import org.springframework.security.oauth2.jwt.JwtClaimNames;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.util.Assert;
+
+@Configuration(proxyBeanMethods = false)
+public class ResourceServerConfiguration {
+    @Bean
+    SecurityFilterChain apiSecurity(HttpSecurity http, Environment environment, ObjectMapper mapper) throws Exception {
+        AuthenticationEntryPoint unauthorized = (request, response, failure) -> {
+            response.setHeader("WWW-Authenticate", "Bearer");
+            writeError(response, mapper, ErrorCode.UNAUTHENTICATED);
+        };
+        AccessDeniedHandler forbidden = (request, response, failure) ->
+                writeError(response, mapper, ErrorCode.FORBIDDEN);
+
+        return http
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(requests -> {
+                    requests.requestMatchers(HttpMethod.GET, ApiPaths.HEALTH, ApiPaths.HEALTH + "/**").permitAll();
+                    if (environment.acceptsProfiles(Profiles.of("dev & !prod"))) {
+                        requests.requestMatchers(HttpMethod.GET, ApiPaths.DEV_PROBE).permitAll();
+                    }
+                    requests.anyRequest().authenticated();
+                })
+                .exceptionHandling(errors -> errors
+                        .authenticationEntryPoint(unauthorized)
+                        .accessDeniedHandler(forbidden))
+                .oauth2ResourceServer(oauth -> oauth
+                        .authenticationEntryPoint(unauthorized)
+                        .accessDeniedHandler(forbidden)
+                        .jwt(Customizer.withDefaults()))
+                .build();
+    }
+
+    @Bean
+    JwtDecoder jwtDecoder(@Value("${app.jwt.public-key-location}") Resource publicKey,
+                          @Value("${app.jwt.issuer}") String issuer,
+                          @Value("${app.jwt.audience}") String audience) throws IOException {
+        Assert.hasText(issuer, "JWT issuer is required");
+        Assert.hasText(audience, "JWT audience is required");
+        try (var input = publicKey.getInputStream()) {
+            RSAPublicKey key = RsaKeyConverters.x509().convert(input);
+            var decoder = NimbusJwtDecoder.withPublicKey(key).build();
+            var audienceValidator = new JwtClaimValidator<List<String>>(JwtClaimNames.AUD,
+                    claims -> claims != null && claims.contains(audience));
+            var expiryValidator = new JwtClaimValidator<Object>(JwtClaimNames.EXP, expiry -> expiry != null);
+            decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                    JwtValidators.createDefaultWithIssuer(issuer), audienceValidator, expiryValidator));
+            return decoder;
+        }
+    }
+
+    private void writeError(HttpServletResponse response, ObjectMapper mapper, ErrorCode code) throws IOException {
+        response.setStatus(code.status());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        mapper.writeValue(response.getOutputStream(), Result.error(code));
+    }
+}
