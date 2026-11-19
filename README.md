@@ -20,4 +20,4 @@ docker compose ps -a
 | `video-asset-media` | MinIO 客户端及私有 Bucket 健康检查 | 8082 |
 | `video-asset-ai` | RabbitMQ 拓扑和 Redis | 8083 |
 
-其他文档见 [架构](docs/architecture.md)、[基础设施](docs/infrastructure.md)、[数据库](docs/database.md)、[API 约定](docs/api-conventions.md)。本轮原始要求归档在 [skills/v1.0.1.md](skills/v1.0.1.md)。
+其他文档见 [架构](docs/architecture.md)、[基础设施](docs/infrastructure.md)、[数据库](docs/database.md)、[API 约定](docs/api-conventions.md)。初始化要求归档在 [原始提示词 v1.0.1](docs/prompts/v1.0.1.md)。

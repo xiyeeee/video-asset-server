@@ -17,12 +17,17 @@ class RequestLogFilter implements GlobalFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        long started = System.nanoTime();
+        long startedAtNanos = System.nanoTime();
         Route route = exchange.getRequiredAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
+        String traceId = exchange.getRequest().getId();
+
         exchange.getResponse().beforeCommit(() -> {
-            LOG.info("method={} route={} status={} durationMs={}", exchange.getRequest().getMethod(),
-                    route.getId(), exchange.getResponse().getStatusCode(),
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+            LOG.info("网关请求结束 traceId={} method={} route={} status={} durationMs={}",
+                    traceId,
+                    exchange.getRequest().getMethod(),
+                    route.getId(),
+                    exchange.getResponse().getStatusCode(),
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAtNanos));
             return Mono.empty();
         });
         return chain.filter(exchange);

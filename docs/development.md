@@ -52,3 +52,17 @@ app:
 ```
 
 Auth 的健康汇总检查 MySQL 和 Redis，AI 汇总检查 RabbitMQ 和 Redis，Media 汇总通过 SDK 验证五个 Bucket。Flyway 启动日志应出现 V1 成功记录，后续重启应显示库已是最新版本。需要单独检查时，参照 [基础设施](infrastructure.md) 和 [数据库](database.md) 中的命令。
+
+## 日志与任务排查
+
+服务默认将日志输出到启动终端。可在启动 Gateway 时追加 `> .local/gateway.log 2>&1` 保存日志。从请求摘要取出 `traceId`，用下方命令按字段精确查找。当前 `traceId` 来自 Gateway 的 WebFlux 请求 ID，用于 Gateway 进程内的请求定位。
+
+```bash
+rg 'traceId=替换为实际值( |$)' .local/gateway.log
+```
+
+当前已有 `ai_task` 表。可在开发环境用任务主键检查任务状态和尝试次数，把示例值 `123` 替换为实际数字 ID。
+
+```bash
+docker compose exec -T mysql sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot video_asset -e "SELECT id, episode_id, status, attempt_count FROM ai_task WHERE id = 123;"'
+```
