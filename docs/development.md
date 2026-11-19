@@ -35,6 +35,29 @@ java -jar video-asset-media/target/video-asset-media-0.0.1-SNAPSHOT.jar
 java -jar video-asset-ai/target/video-asset-ai-0.0.1-SNAPSHOT.jar
 ```
 
+## Navicat 连接本机 MySQL
+
+在 Navicat 新建 MySQL 连接。本机联调用的 Compose 项目为 `video-asset-verify`。
+
+| 字段 | 本机联调配置 |
+| --- | --- |
+| 连接名 | 视频转素材（本地） |
+| 主机 | `127.0.0.1` |
+| 端口 | `13306` |
+| 用户名 | `video_asset_auth` |
+| 密码 | `.local/idea-dev.properties` 中的 `MYSQL_AUTH_PASSWORD` |
+| 数据库 | `video_asset` |
+
+测试连接成功后保存。常用表为 `project`（项目）、`video_episode`（集数）和 `asset`（素材）。
+`video_episode.source_asset_id` 对应 `asset.id`，可查找每集的原视频记录。
+
+在其他机器上，端口取实际 Compose 环境文件中的 `MYSQL_PORT`，项目默认值为 `3306`。
+本机可用下方命令核对映射端口。
+
+```bash
+docker compose --env-file .local/verify.env -p video-asset-verify port mysql 3306
+```
+
 ## 验证
 
 在导出同一份开发环境变量的终端执行。脚本使用 Python 3 标准库，可选用 OpenSSL 和本地私钥生成测试 Token。脚本验证 Nacos 健康实例、四个 Actuator、三个路由、直连及网关侧的 401、Gateway CORS。启用 JWT 测试后，合法 Token 会通过鉴权并在不存在的验证路径得到 404，错误 Token 应得到 401。
