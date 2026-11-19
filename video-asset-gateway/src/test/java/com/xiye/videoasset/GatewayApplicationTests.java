@@ -1,8 +1,8 @@
 package com.xiye.videoasset;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.cloud.nacos.config.enabled=false",
@@ -10,7 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
         "spring.cloud.discovery.enabled=false"
 })
 @ActiveProfiles("dev")
-class VideoAssetServerApplicationTests {
+class GatewayApplicationTests {
 
     @Test
     void contextLoads() {
