@@ -1,5 +1,5 @@
 server:
-  port: ${AI_PORT:8083}
+  port: ${AI_PORT:18083}
   error:
     include-message: never
     include-stacktrace: never

@@ -50,4 +50,4 @@ SQL
 
 QQ 等使用 465 隐式 TLS 的环境令 `SMTP_SSL=true`、`SMTP_STARTTLS=false`。使用 587 的 STARTTLS 环境令 `SMTP_SSL=false`、`SMTP_STARTTLS=true`。本地 Mailpit 关闭认证与 TLS，发送到测试域名并从 Mailpit 收件页取码。真实 SMTP 凭证应从仓库外注入，不写入 Nacos 或提交到 Git。
 
-前端开发服务器将 `/api` 代理到 Gateway，默认 `127.0.0.1:8080`，可用 `API_PROXY_TARGET` 覆盖。如果 Vite 改用其他端口，将浏览器访问的 Origin 加入 Gateway 的 `GATEWAY_ALLOWED_ORIGINS`。生产反向代理需保留该前缀。
+前端开发服务器将 `/api` 代理到 Gateway，默认 `127.0.0.1:18080`，可用 `API_PROXY_TARGET` 覆盖。如果 Vite 改用其他端口，将浏览器访问的 Origin 加入 Gateway 的 `GATEWAY_ALLOWED_ORIGINS`。生产反向代理需保留该前缀。

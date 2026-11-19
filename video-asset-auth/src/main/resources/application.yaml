@@ -1,5 +1,5 @@
 server:
-  port: ${AUTH_PORT:8081}
+  port: ${AUTH_PORT:18081}
   error:
     include-message: never
     include-stacktrace: never

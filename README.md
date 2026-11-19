@@ -15,9 +15,9 @@ docker compose ps -a
 | --- | --- | --- |
 | `video-asset-common` | 响应、错误、Servlet 鉴权、开发探针、Redis 配置 | — |
 | `video-asset-api` | 服务名称和后续 DTO、Feign 契约位置 | — |
-| `video-asset-gateway` | WebFlux、发现路由、负载均衡、CORS、请求日志 | 8080 |
-| `video-asset-auth` | BCrypt、JWT 资源服务、MyBatis-Plus、Flyway、Redis | 8081 |
-| `video-asset-media` | MinIO 客户端及私有 Bucket 健康检查 | 8082 |
-| `video-asset-ai` | RabbitMQ 拓扑和 Redis | 8083 |
+| `video-asset-gateway` | WebFlux、发现路由、负载均衡、CORS、请求日志 | 18080 |
+| `video-asset-auth` | BCrypt、JWT 资源服务、MyBatis-Plus、Flyway、Redis | 18081 |
+| `video-asset-media` | MinIO 客户端及私有 Bucket 健康检查 | 18082 |
+| `video-asset-ai` | RabbitMQ 拓扑和 Redis | 18083 |
 
 其他文档见 [架构](docs/architecture.md)、[基础设施](docs/infrastructure.md)、[数据库](docs/database.md)、[API 约定](docs/api-conventions.md)。初始化要求归档在 [原始提示词 v1.0.1](docs/prompts/v1.0.1.md)。注册和登录见 [账号接口](docs/auth-api.md) 与 [实现提示词 v1.0.2](docs/prompts/v1.0.2.md)。

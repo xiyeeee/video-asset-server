@@ -81,7 +81,7 @@ def main():
 
     urls = {
         name: f"http://127.0.0.1:{os.getenv(f'{name.upper()}_PORT', port)}"
-        for name, port in (("gateway", 8080), ("auth", 8081), ("media", 8082), ("ai", 8083))
+        for name, port in (("gateway", 18080), ("auth", 18081), ("media", 18082), ("ai", 18083))
     }
     nacos_addr = os.getenv("NACOS_SERVER_ADDR") or f"127.0.0.1:{os.getenv('NACOS_PORT', 8848)}"
     nacos = f"http://{nacos_addr}/nacos"

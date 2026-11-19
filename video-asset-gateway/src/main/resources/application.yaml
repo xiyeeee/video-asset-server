@@ -1,5 +1,5 @@
 server:
-  port: ${GATEWAY_PORT:8080}
+  port: ${GATEWAY_PORT:18080}
   error:
     include-message: never
     include-stacktrace: never
