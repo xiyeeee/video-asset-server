@@ -31,6 +31,21 @@ spring:
       timeout: 2s
       ssl:
         enabled: ${REDIS_SSL_ENABLED:true}
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:true}
+      mail.smtp.ssl.enable: ${SMTP_SSL:false}
+      mail.smtp.ssl.checkserveridentity: true
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:true}
+      mail.smtp.starttls.required: ${SMTP_STARTTLS:true}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
   datasource:
     url: ${MYSQL_JDBC_URL}
     username: ${MYSQL_AUTH_USERNAME:video_asset_auth}
@@ -57,16 +72,26 @@ mybatis-plus:
 logging:
   level:
     com.xiye.videoasset.auth.persistence.mapper: INFO
+    org.springframework.web.servlet.mvc.method.annotation: INFO
+    com.zaxxer.hikari: INFO
+    com.alibaba.nacos.client.naming: WARN
 
 spring.jackson.time-zone: UTC
 
 app:
+  auth:
+    code-hmac-key: ${AUTH_CODE_HMAC_KEY:}
+    mail-enabled: ${EMAIL_CODE_ENABLED:false}
+    mail-from: ${SMTP_FROM:}
   jwt:
     issuer: ${JWT_ISSUER}
     audience: ${JWT_AUDIENCE}
     public-key-location: ${JWT_PUBLIC_KEY_LOCATION}
 
 management:
+  health:
+    mail:
+      enabled: false
   endpoints:
     web:
       exposure:

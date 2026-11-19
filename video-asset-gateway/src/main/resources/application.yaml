@@ -37,6 +37,7 @@ spring:
                 allowed-origins: ${GATEWAY_ALLOWED_ORIGINS:}
                 allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
                 allowed-headers: [Authorization, Content-Type, Accept]
+                exposed-headers: [Retry-After]
                 max-age: 3600
           routes:
             - id: auth
