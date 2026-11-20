@@ -20,7 +20,7 @@ import org.springframework.context.annotation.Import;
 @Import({ResourceServerConfiguration.class, ApiExceptionHandler.class, DevelopmentProbe.class})
 public class MediaApplication {
     @Bean
-    ExtractionPlan extractionPlan(@Value("${EXTRACTION_SUPPORTED_TYPES:CHARACTER,AUDIO}") String types) {
+    ExtractionPlan extractionPlan(@Value("${EXTRACTION_SUPPORTED_TYPES:SHOT,CHARACTER,AUDIO}") String types) {
         return new ExtractionPlan(types);
     }
 

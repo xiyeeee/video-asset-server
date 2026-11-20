@@ -25,8 +25,7 @@
 ```
 
 支持分镜的 Python 版本可生成逐镜头时间线和代表图，人物透明图和原音轨仍可独立提取。
-Media 与 Java AI 默认启用人物和音轨。部署确认 Python 支持 `SHOTS` 后，两边同步设置
-`EXTRACTION_SUPPORTED_TYPES=SHOT,CHARACTER,AUDIO`，能力接口才对前端开启分镜。页面按该结果显示选项。
+Media 与 Java AI 默认启用分镜、人物和音轨，`EXTRACTION_SUPPORTED_TYPES=SHOT,CHARACTER,AUDIO`。页面按能力接口的结果显示选项。
 
 | multipart 字段 | 类型 | 说明 |
 | --- | --- | --- |

@@ -23,8 +23,7 @@ flowchart LR
 本地开发先运行 Auth 应用 Flyway V8，再启动 Media、Gateway、Java AI 和 Python。Java AI 默认连接
 `CHARACTER_PYTHON_URL=http://127.0.0.1:19000`。共享路径、Python 单进程和权重配置沿用
 [人物提取服务配置](frontend-character-extraction-api.md#本地联调与部署)。Media 与 Java AI 使用同一
-`EXTRACTION_SUPPORTED_TYPES`，默认 `CHARACTER,AUDIO`。用验收样片确认部署的 Python 能通过内部素材任务接口完成
-`outputs:["SHOTS"]` 后，将两边配置同步为 `SHOT,CHARACTER,AUDIO` 并重启。Python 继续使用端口 `19000`。
+`EXTRACTION_SUPPORTED_TYPES`，默认 `SHOT,CHARACTER,AUDIO`。Python 继续使用端口 `19000`。
 
 - 人物沿用 `/internal/v1/character-extraction/tasks`，继续使用 FFmpeg 抽帧和既有人物检测、分割模型。
 - 音轨使用 `/internal/v1/asset-extraction/tasks`，只传 `outputs:["AUDIO"]`，从共享目录导入 16 位 PCM WAV。
