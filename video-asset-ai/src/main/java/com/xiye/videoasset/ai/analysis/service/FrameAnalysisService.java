@@ -14,14 +14,16 @@ public class FrameAnalysisService {
     private static final Logger LOG = LoggerFactory.getLogger(FrameAnalysisService.class);
     private final FrameTaskRepository tasks;
     private final FrameStorage storage;
+    private final EpisodeAnalysisAccess access;
 
-    FrameAnalysisService(FrameTaskRepository tasks, FrameStorage storage) {
+    FrameAnalysisService(FrameTaskRepository tasks, FrameStorage storage, EpisodeAnalysisAccess access) {
         this.tasks = tasks;
         this.storage = storage;
+        this.access = access;
     }
 
     public FrameTaskVO start(String subject, long projectId, long episodeId) {
-        authorize(subject, projectId, episodeId);
+        access.requireUploadedEpisode(subject, projectId, episodeId);
         tasks.create(episodeId);
         FrameTaskVO task = tasks.find(episodeId).orElseThrow();
         LOG.info("已受理首帧解析请求 taskId={} episodeId={} status={}", task.id(), episodeId, task.status());
@@ -29,12 +31,12 @@ public class FrameAnalysisService {
     }
 
     public FrameTaskVO current(String subject, long projectId, long episodeId) {
-        authorize(subject, projectId, episodeId);
+        access.requireUploadedEpisode(subject, projectId, episodeId);
         return tasks.find(episodeId).orElse(null);
     }
 
     public FrameTaskVO retry(String subject, long projectId, long episodeId, long taskId) {
-        authorize(subject, projectId, episodeId);
+        access.requireUploadedEpisode(subject, projectId, episodeId);
         FrameTaskVO current = tasks.find(episodeId)
                 .filter(task -> task.id().equals(Long.toString(taskId)))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
@@ -46,26 +48,11 @@ public class FrameAnalysisService {
     }
 
     public List<FramePreview> frames(String subject, long projectId, long episodeId) {
-        authorize(subject, projectId, episodeId);
+        access.requireUploadedEpisode(subject, projectId, episodeId);
         return tasks.frame(projectId, episodeId).stream()
                 .map(frame -> new FramePreview(frame.id(), "首帧分镜", "storyboard", frame.timestampMs(),
                         frame.sizeBytes(), storage.sign(frame), FrameStorage.PREVIEW_TTL_SECONDS))
                 .toList();
-    }
-
-    private void authorize(String subject, long projectId, long episodeId) {
-        long ownerId;
-        try {
-            ownerId = Long.parseLong(subject);
-        } catch (NumberFormatException exception) {
-            throw new BusinessException(ErrorCode.UNAUTHENTICATED);
-        }
-        if (ownerId <= 0 || !tasks.isActive(ownerId)) {
-            throw new BusinessException(ErrorCode.UNAUTHENTICATED);
-        }
-        if (!tasks.ownsSource(ownerId, projectId, episodeId)) {
-            throw new BusinessException(ErrorCode.NOT_FOUND);
-        }
     }
 
     public record FramePreview(String id, String name, String type, long timestampMs, long sizeBytes,

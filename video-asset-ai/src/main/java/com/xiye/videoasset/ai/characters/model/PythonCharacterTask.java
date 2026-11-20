@@ -1,0 +1,25 @@
+package com.xiye.videoasset.ai.characters.model;
+
+public record PythonCharacterTask(
+        String taskId, Status status, Stage stage, Progress progress, Result result, Error error
+) {
+    public enum Status {
+        QUEUED, RUNNING, SUCCEEDED, FAILED
+    }
+
+    public enum Stage {
+        EXTRACTING_FRAMES, DETECTING_CHARACTERS, SEGMENTING_CHARACTERS, WRITING_RESULTS
+    }
+
+    public record Submit(String taskId, String sourceVideoRef, double frameIntervalSeconds) {
+    }
+
+    public record Progress(Integer frameCount, Integer detectedCharacterCount) {
+    }
+
+    public record Result(String manifestRef, Integer characterAssetCount) {
+    }
+
+    public record Error(String code) {
+    }
+}
