@@ -59,3 +59,14 @@ GRANT SELECT ON video_asset.ai_extraction_job_state TO 'video_asset_ai'@'%';
 `shot_index`、`preview_timestamp_ms` 保存镜头索引和实际帧时间。素材 ID 同时作为对外的镜头 ID。
 `(ai_task_id, shot_index)` 在同一执行版本中唯一。V8 新列可空，原有首帧继续兼容。
 分镜对象存于私有 `video-frames`，现有 AI 和 Media 账号的表权限覆盖 V8。
+
+## V9 对白提取
+
+对白复用 `dialogue` 表。V9 新增 `ai_task_id`、`segment_index` 和 `speaker_id`，历史列保持兼容。
+`(ai_task_id, segment_index)` 唯一，角色关联继续使用原 `character_id`，自动转写阶段该字段为空。
+零句版本通过成功的 `ai_task` 表示。查询使用此版本状态，无需写占位对白。
+
+```sql
+GRANT SELECT, INSERT ON video_asset.dialogue TO 'video_asset_ai'@'%';
+GRANT SELECT ON video_asset.dialogue TO 'video_asset_media'@'%';
+```

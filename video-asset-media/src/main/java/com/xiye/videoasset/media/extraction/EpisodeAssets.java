@@ -6,6 +6,7 @@ import com.xiye.videoasset.common.BusinessException;
 import com.xiye.videoasset.common.ErrorCode;
 import com.xiye.videoasset.media.episode.storage.EpisodeObjectStorage;
 import com.xiye.videoasset.media.extraction.EpisodeAssetMapper.AssetRow;
+import com.xiye.videoasset.media.extraction.EpisodeAssetMapper.DialogueRow;
 import com.xiye.videoasset.media.extraction.EpisodeAssetMapper.WorkerStatus;
 import com.xiye.videoasset.media.project.service.ProjectService;
 import java.nio.charset.StandardCharsets;
@@ -46,16 +47,29 @@ class EpisodeAssets {
             return new Page(List.of(), page, size, 0, AssetStatus.UNSUPPORTED);
         }
         Long taskId = version == null ? latestWorker(episodeId, kind) : version;
-        List<AssetView> items = assets.list(episodeId, kind.assetType, taskId, size, (long) (page - 1) * size)
-                .stream().map(row -> view(row, type)).toList();
-        return new Page(items, page, size, assets.count(episodeId, kind.assetType, taskId),
-                status(episodeId, type, kind));
+        long offset = (long) (page - 1) * size;
+        List<AssetView> items;
+        if (kind == AssetKind.DIALOGUE) {
+            items = taskId == null ? List.of() : assets.dialogue(episodeId, taskId, size, offset)
+                    .stream().map(EpisodeAssets::viewDialogue).toList();
+        } else {
+            items = assets.list(episodeId, kind.assetType, taskId, size, offset)
+                    .stream().map(row -> view(row, type)).toList();
+        }
+        return new Page(items, page, size, count(episodeId, kind, taskId), status(episodeId, type, kind));
     }
 
     private SummaryItem summary(long episodeId, ExtractionType type) {
         AssetKind kind = AssetKind.of(type);
-        long count = kind == null ? 0 : assets.count(episodeId, kind.assetType, latestWorker(episodeId, kind));
+        long count = kind == null ? 0 : count(episodeId, kind, latestWorker(episodeId, kind));
         return new SummaryItem(type, count, status(episodeId, type, kind));
+    }
+
+    private long count(long episodeId, AssetKind kind, Long taskId) {
+        if (kind == AssetKind.DIALOGUE) {
+            return taskId == null ? 0 : assets.countDialogue(episodeId, taskId);
+        }
+        return assets.count(episodeId, kind.assetType, taskId);
     }
 
     private AssetStatus status(long episodeId, ExtractionType type, AssetKind kind) {
@@ -103,10 +117,19 @@ class EpisodeAssets {
                 type, row.createdAt(), taskId, row.sizeBytes(), EpisodeObjectStorage.PLAYBACK_TTL_SECONDS, details);
     }
 
+    private static AssetView viewDialogue(DialogueRow row) {
+        Dialogue details = new Dialogue(row.segmentIndex(), row.startMs(), row.endMs(), row.text(),
+                row.speakerId(), null);
+        return new AssetView(Long.toString(row.projectId()), Long.toString(row.episodeId()),
+                Long.toString(row.id()), ExtractionType.DIALOGUE, row.createdAt(), Long.toString(row.aiTaskId()),
+                row.sizeBytes(), 0, details);
+    }
+
     enum AssetKind {
         SHOT("STORYBOARD", "SHOT_EXTRACTION"),
         CHARACTER("CHARACTER_IMAGE", "CHARACTER_EXTRACTION"),
-        AUDIO("AUDIO_TRACK", "AUDIO_EXTRACTION");
+        AUDIO("AUDIO_TRACK", "AUDIO_EXTRACTION"),
+        DIALOGUE(null, "DIALOGUE_EXTRACTION");
 
         final String assetType;
         final String workerType;
@@ -121,6 +144,7 @@ class EpisodeAssets {
                 case SHOT -> SHOT;
                 case CHARACTER -> CHARACTER;
                 case AUDIO -> AUDIO;
+                case DIALOGUE -> DIALOGUE;
                 default -> null;
             };
         }
@@ -149,7 +173,7 @@ class EpisodeAssets {
         }
     }
 
-    sealed interface Details permits Shot, CharacterImage, Audio {
+    sealed interface Details permits Shot, CharacterImage, Audio, Dialogue {
     }
 
     record Shot(
@@ -164,5 +188,10 @@ class EpisodeAssets {
     }
 
     record Audio(String audioType, Long startMs, Long endMs, String audioUrl) implements Details {
+    }
+
+    record Dialogue(
+            int segmentIndex, long startMs, long endMs, String text, String speakerId, String characterId
+    ) implements Details {
     }
 }

@@ -11,13 +11,13 @@
 | GET `/api/media/extraction-capabilities` | 无 | `200`，`data` 为所有类型及支持状态 |
 | POST `/api/media/videos/upload` | multipart，见下文 | 新上传 `201`，幂等重放 `200` |
 
-分镜已在 Media 和 Java AI 启用时的 `data` 示例。
+分镜和对白均在 Media 和 Java AI 启用时的 `data` 示例。
 
 ```json
 [
   {"type":"SHOT","supported":true},
   {"type":"CHARACTER","supported":true},
-  {"type":"DIALOGUE","supported":false},
+  {"type":"DIALOGUE","supported":true},
   {"type":"BACKGROUND","supported":false},
   {"type":"AUDIO","supported":true},
   {"type":"STORY","supported":false}
@@ -26,6 +26,7 @@
 
 支持分镜的 Python 版本可生成逐镜头时间线和代表图，人物透明图和原音轨仍可独立提取。
 Media 与 Java AI 默认启用分镜、人物和音轨，`EXTRACTION_SUPPORTED_TYPES=SHOT,CHARACTER,AUDIO`。页面按能力接口的结果显示选项。
+确认 Python 已能执行 `DIALOGUE` 后，在两边的能力配置中同步追加 `DIALOGUE`，再开放上传和任务中心的对白选项。
 
 | multipart 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -122,6 +123,8 @@ Authorization: Bearer <accessToken>
 步骤阶段是 Python 已报告的真实事件，阶段可能为 `null`。成功时进度为 100，当前协议其余情况返回 `null`。
 分镜阶段为 `DETECTING_SHOTS`、`EXTRACTING_PREVIEWS`、`WRITING_RESULTS`。完整导入后，分镜步骤为
 `SUCCESS`，`assetCount` 表示实际镜头数。无切点的视频有一个覆盖全片的镜头。
+对白阶段为 `PREPARING_AUDIO`、`TRANSCRIBING_DIALOGUE`、`WRITING_RESULTS`。全部导入后
+`assetCount` 表示实际句数，`0` 也是成功。
 `sourceTaskId` 是产出该步骤的执行任务 ID，与任务中心的主任务 ID 不同。
 列表和素材页分页参数均从 1 开始，默认 `pageNum=1&pageSize=20`，单页最多 100 条。
 
@@ -141,7 +144,7 @@ Authorization: Bearer <accessToken>
 {"episodeId":"135","summary":[
   {"type":"SHOT","count":2,"status":"SUCCESS"},
   {"type":"CHARACTER","count":6,"status":"SUCCESS"},
-  {"type":"DIALOGUE","count":0,"status":"UNSUPPORTED"},
+  {"type":"DIALOGUE","count":3,"status":"SUCCESS"},
   {"type":"BACKGROUND","count":0,"status":"UNSUPPORTED"},
   {"type":"AUDIO","count":1,"status":"SUCCESS"},
   {"type":"STORY","count":0,"status":"UNSUPPORTED"}
@@ -156,7 +159,8 @@ Authorization: Bearer <accessToken>
 | `CHARACTER` | `characterId,shotId,timestampMs,sourceFrame,frameCharacterNumber,imageUrl`。未归组的角色或分镜关联为 `null` |
 | `AUDIO` | `audioType,startMs,endMs,audioUrl`，当前为 `ORIGINAL_TRACK` WAV |
 | `SHOT` | `shotId,shotIndex,startMs,endMs,previewTimestampMs,frameUrl`。正式分镜的 `shotId` 等于素材 `assetId`，区间为 `[startMs,endMs)` |
-| `DIALOGUE`、`BACKGROUND`、`STORY` | 当前返回空列表和 `UNSUPPORTED` |
+| `DIALOGUE` | `segmentIndex,startMs,endMs,text,speakerId,characterId`，首版 `characterId` 为空 |
+| `BACKGROUND`、`STORY` | 当前返回空列表和 `UNSUPPORTED` |
 
 ```json
 {
@@ -189,6 +193,52 @@ Authorization: Bearer <accessToken>
 }
 ```
 
+## 对白提取与时间线
+
+向任务中心发起对白提取，上传自动提取也可选择 `DIALOGUE`。
+
+```http
+POST /api/ai/tasks
+Content-Type: application/json
+Authorization: Bearer <accessToken>
+
+{"episodeId":"135","extractTypes":["DIALOGUE"]}
+```
+
+任务成功后，通过 `GET /api/media/episodes/135/assets?type=DIALOGUE&pageNum=1&pageSize=20`
+读取对白。按 `segmentIndex` 升序，默认使用当前原视频的最新成功版本。用 `sourceTaskId`
+固定其他页或查看旧版本。新任务失败时旧版本可读，最新成功版本为零句时，默认列表为空。
+
+```json
+{
+  "projectId":"41","episodeId":"135","assetId":"816","assetType":"DIALOGUE",
+  "createdAt":"2026-11-20T07:00:15Z","sourceTaskId":"923","sizeBytes":21,"expiresInSeconds":0,
+  "details":{"segmentIndex":1,"startMs":1200,"endMs":3100,"text":"你怎么还在这？",
+    "speakerId":"speaker-1","characterId":null}
+}
+```
+
+`sizeBytes` 为 UTF-8 文本长度。对白直接返回文本，`expiresInSeconds` 固定为 `0`。
+时间单位为整数毫秒，播放区间为 `[startMs,endMs)`，可留白或重叠。点击对白可跳到 `startMs / 1000`，
+播放器可同时高亮覆盖当前时间的多句对白。匿名编号仅在该执行版本内有效，`speakerId:null` 表示未知说话人。
+
+### 真实后端联调记录
+
+在隔离环境使用 `POST /api/ai/tasks` 发起任务，由 Python 的 FunASR 分支实时生成清单，再通过网关分页查回。
+《末班车之后》原片返回零句并正常完成。带普通话合成配音的验收片返回 3 句，Java 与 Python 的句段数量、顺序、
+文本、时间和匿名编号逐项一致。验收没有预填清单或对白行。
+
+| 核对项 | 验收片实际值 |
+| --- | --- |
+| 网关 | `http://127.0.0.1:28480` |
+| 剧集 ID | `2` |
+| Java 主任务 ID | `2` |
+| Python 执行 ID 和 `sourceTaskId` | `2` |
+| 清单引用 | `2-dialogue-cbc15db9c82a4b5485194fc3b4ae5282/dialogue.json` |
+| 第一段 | `110–1270 ms`，`speaker-1`，「你怎么还在这里，」 |
+
+隔离环境在验收后已清理。前端联调通过本地网关 `18080` 对当前有权访问且带人声的剧集重新发起任务，使用返回的新 ID。
+
 ## 错误码
 
 | HTTP 或任务错误码 | 处理方式 |
@@ -206,4 +256,6 @@ Authorization: Bearer <accessToken>
 | `AUDIO_STREAM_NOT_FOUND` | 视频无音轨，已成功的人物素材可继续使用 |
 | `SHOT_MANIFEST_INVALID` | 分镜清单的版本、数量、时间区间或预览文件校验失败 |
 | `SHOT_DETECTION_FAILED`、`SHOT_PREVIEW_FAILED`、`SHOT_WRITE_FAILED`、`SHOT_EXTRACTION_TIMEOUT` | Python 分镜处理失败，显示步骤错误，可独立重试 |
+| `DIALOGUE_MANIFEST_INVALID` | 对白清单引用、版本、句数、时间、文字或说话人编号无效 |
+| `DIALOGUE_AUDIO_PREP_FAILED`、`DIALOGUE_MODEL_UNAVAILABLE`、`DIALOGUE_TRANSCRIPTION_FAILED`、`DIALOGUE_EXTRACTION_TIMEOUT`、`DIALOGUE_WRITE_FAILED` | Python 对白处理失败，显示步骤错误，可独立重试 |
 | 其他步骤错误 | 显示步骤失败并保留任务 ID，后端按错误码排查 |

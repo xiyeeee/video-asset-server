@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 
 public class ExtractionPlan {
     private static final Set<ExtractionType> IMPLEMENTED = Set.of(
-            ExtractionType.SHOT, ExtractionType.CHARACTER, ExtractionType.AUDIO);
+            ExtractionType.SHOT, ExtractionType.CHARACTER, ExtractionType.AUDIO, ExtractionType.DIALOGUE);
     private final Set<ExtractionType> enabled;
 
     public ExtractionPlan(String configured) {

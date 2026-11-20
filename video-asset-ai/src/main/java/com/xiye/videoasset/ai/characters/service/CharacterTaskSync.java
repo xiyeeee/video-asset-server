@@ -24,12 +24,13 @@ class CharacterTaskSync {
     private final CharacterResultImporter importer;
     private final AudioResultImporter audio;
     private final ShotResultImporter shots;
+    private final DialogueResultImporter dialogue;
     private final CharacterExtractionProperties properties;
 
     CharacterTaskSync(
             CharacterTaskMapper tasks, PythonCharacterClient python, CharacterSharedFiles files,
             CharacterResultImporter importer, AudioResultImporter audio, ShotResultImporter shots,
-            CharacterExtractionProperties properties
+            DialogueResultImporter dialogue, CharacterExtractionProperties properties
     ) {
         this.tasks = tasks;
         this.python = python;
@@ -37,6 +38,7 @@ class CharacterTaskSync {
         this.importer = importer;
         this.audio = audio;
         this.shots = shots;
+        this.dialogue = dialogue;
         this.properties = properties;
     }
 
@@ -80,6 +82,7 @@ class CharacterTaskSync {
                 case CHARACTER_EXTRACTION -> importer.importResult(task, lease, video);
                 case AUDIO_EXTRACTION -> audio.importResult(task, lease, video);
                 case SHOT_EXTRACTION -> shots.importResult(task, lease, video);
+                case DIALOGUE_EXTRACTION -> dialogue.importResult(task, lease, video);
             };
             if (imported) {
                 files.removeInput(task.id());

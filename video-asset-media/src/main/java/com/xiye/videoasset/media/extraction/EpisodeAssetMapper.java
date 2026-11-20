@@ -71,6 +71,30 @@ interface EpisodeAssetMapper {
     long count(@Param("episodeId") long episodeId, @Param("assetType") String assetType,
                @Param("sourceTaskId") Long sourceTaskId);
 
+    String DIALOGUE_VERSION = """
+            FROM dialogue d JOIN ai_task t ON t.id = d.ai_task_id AND t.episode_id = d.episode_id
+                AND t.task_type = 'DIALOGUE_EXTRACTION' AND t.status = 'SUCCEEDED'
+            WHERE d.episode_id = #{episodeId} AND d.ai_task_id = #{sourceTaskId}
+            """;
+
+    @Select("""
+            SELECT d.id, d.project_id, d.episode_id, d.ai_task_id, d.created_at, d.segment_index,
+                   d.start_ms, d.end_ms, d.line_text, d.speaker_id, OCTET_LENGTH(d.line_text) AS size_bytes
+            """ + DIALOGUE_VERSION + " ORDER BY d.segment_index LIMIT #{size} OFFSET #{offset}")
+    List<DialogueRow> dialogue(
+            @Param("episodeId") long episodeId, @Param("sourceTaskId") long sourceTaskId,
+            @Param("size") int size, @Param("offset") long offset
+    );
+
+    @Select("SELECT COUNT(*) " + DIALOGUE_VERSION)
+    long countDialogue(@Param("episodeId") long episodeId, @Param("sourceTaskId") long sourceTaskId);
+
+    record DialogueRow(
+            long id, long projectId, long episodeId, long aiTaskId, Instant createdAt, int segmentIndex,
+            long startMs, long endMs, String text, String speakerId, long sizeBytes
+    ) {
+    }
+
     enum WorkerStatus {
         PENDING, RUNNING, SUCCEEDED, FAILED
     }

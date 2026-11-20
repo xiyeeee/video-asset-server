@@ -16,7 +16,8 @@ public interface CharacterTaskMapper {
             python_asset_count AS asset_count, error_code, created_at, finished_at, task_type
             """;
     String ACTIVE_LEASE = """
-            WHERE id = #{id} AND task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION')
+            WHERE id = #{id}
+                AND task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION', 'DIALOGUE_EXTRACTION')
                 AND status IN ('PENDING', 'RUNNING') AND dispatch_attempt_count = #{lease}
                 AND run_deadline > UTC_TIMESTAMP(6)
             """;
@@ -45,7 +46,7 @@ public interface CharacterTaskMapper {
 
     @Select("SELECT " + TASK_COLUMNS + """
             FROM ai_task
-            WHERE task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION')
+            WHERE task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION', 'DIALOGUE_EXTRACTION')
                 AND status IN ('PENDING', 'RUNNING')
                 AND dispatch_after <= UTC_TIMESTAMP(6) AND run_deadline > UTC_TIMESTAMP(6)
             ORDER BY dispatch_after, id LIMIT 1
@@ -63,7 +64,7 @@ public interface CharacterTaskMapper {
                 error_code = IF(task_type = 'CHARACTER_EXTRACTION',
                                 'CHARACTER_TASK_TIMEOUT', 'EXTRACTION_TASK_TIMEOUT'),
                 finished_at = UTC_TIMESTAMP(6), dispatch_after = NULL, run_deadline = NULL
-            WHERE task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION')
+            WHERE task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION', 'DIALOGUE_EXTRACTION')
                 AND status IN ('PENDING', 'RUNNING')
                 AND run_deadline <= UTC_TIMESTAMP(6)
             """)
@@ -155,6 +156,25 @@ public interface CharacterTaskMapper {
     );
 
     record ShotTiming(int index, long startMs, long endMs, long previewTimestampMs) {
+    }
+
+    @Insert("""
+            <script>
+            INSERT INTO dialogue (project_id, episode_id, ai_task_id, segment_index, start_ms, end_ms,
+                                  line_text, speaker_id)
+            VALUES
+            <foreach collection="segments" item="segment" separator=",">
+                (#{projectId}, #{episodeId}, #{taskId}, #{segment.index}, #{segment.startMs}, #{segment.endMs},
+                 #{segment.text}, #{segment.speakerId})
+            </foreach>
+            </script>
+            """)
+    void insertDialogue(
+            @Param("projectId") long projectId, @Param("episodeId") long episodeId, @Param("taskId") long taskId,
+            @Param("segments") List<DialogueSegment> segments
+    );
+
+    record DialogueSegment(int index, long startMs, long endMs, String text, String speakerId) {
     }
 
     String VISIBLE_ASSETS = """

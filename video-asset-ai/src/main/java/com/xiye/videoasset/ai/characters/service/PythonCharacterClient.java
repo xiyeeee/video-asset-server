@@ -126,14 +126,16 @@ class PythonCharacterClient {
         AssetResult output = branch.result();
         PythonCharacterTask.Result result = output == null ? null : switch (kind) {
             case AUDIO_EXTRACTION -> new PythonCharacterTask.Result(output.audioRef(), 1);
-            case SHOT_EXTRACTION -> new PythonCharacterTask.Result(output.manifestRef(), shotCount(output.shotCount()));
+            case SHOT_EXTRACTION -> new PythonCharacterTask.Result(output.manifestRef(), readCount(output.shotCount()));
+            case DIALOGUE_EXTRACTION -> new PythonCharacterTask.Result(output.manifestRef(),
+                    readCount(output.segmentCount()));
             default -> throw new CharacterFailure("PYTHON_PROTOCOL_INVALID");
         };
         return new PythonCharacterTask(task.taskId(), branch.status(), branch.stage(),
                 new PythonCharacterTask.Progress(null, null), result, branch.error());
     }
 
-    private static Integer shotCount(JsonNode count) {
+    private static Integer readCount(JsonNode count) {
         return count != null && count.isIntegralNumber() && count.canConvertToInt() ? count.intValue() : null;
     }
 
@@ -149,7 +151,7 @@ class PythonCharacterClient {
     ) {
     }
 
-    private record AssetResult(String audioRef, String manifestRef, JsonNode shotCount) {
+    private record AssetResult(String audioRef, String manifestRef, JsonNode shotCount, JsonNode segmentCount) {
     }
 
     private static void checkState(long id, PythonCharacterTask state, PythonExtractionKind kind) {
@@ -167,8 +169,11 @@ class PythonCharacterClient {
         if (result != null && (result.characterAssetCount() == null || negative(result.characterAssetCount())
                 || result.manifestRef() == null || result.manifestRef().isBlank()
                 || result.manifestRef().length() > 512)) {
-            String code = kind == PythonExtractionKind.SHOT_EXTRACTION
-                    ? "SHOT_MANIFEST_INVALID" : "PYTHON_PROTOCOL_INVALID";
+            String code = switch (kind) {
+                case SHOT_EXTRACTION -> "SHOT_MANIFEST_INVALID";
+                case DIALOGUE_EXTRACTION -> "DIALOGUE_MANIFEST_INVALID";
+                default -> "PYTHON_PROTOCOL_INVALID";
+            };
             throw new CharacterFailure(code);
         }
     }
