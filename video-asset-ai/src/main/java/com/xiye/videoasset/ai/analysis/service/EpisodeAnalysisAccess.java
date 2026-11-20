@@ -15,6 +15,13 @@ public class EpisodeAnalysisAccess {
 
     // 视频解析接口统一要求带有效账号的所属项目，以及已绑定的原视频。
     public void requireUploadedEpisode(String subject, long projectId, long episodeId) {
+        long ownerId = requireActiveUser(subject);
+        if (!tasks.ownsSource(ownerId, projectId, episodeId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+    }
+
+    public long requireActiveUser(String subject) {
         long ownerId;
         try {
             ownerId = Long.parseLong(subject);
@@ -24,8 +31,6 @@ public class EpisodeAnalysisAccess {
         if (ownerId <= 0 || !tasks.isActive(ownerId)) {
             throw new BusinessException(ErrorCode.UNAUTHENTICATED);
         }
-        if (!tasks.ownsSource(ownerId, projectId, episodeId)) {
-            throw new BusinessException(ErrorCode.NOT_FOUND);
-        }
+        return ownerId;
     }
 }

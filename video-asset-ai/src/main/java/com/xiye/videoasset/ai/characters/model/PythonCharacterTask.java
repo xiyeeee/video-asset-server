@@ -8,7 +8,7 @@ public record PythonCharacterTask(
     }
 
     public enum Stage {
-        EXTRACTING_FRAMES, DETECTING_CHARACTERS, SEGMENTING_CHARACTERS, WRITING_RESULTS
+        EXTRACTING_AUDIO, EXTRACTING_FRAMES, DETECTING_CHARACTERS, SEGMENTING_CHARACTERS, WRITING_RESULTS
     }
 
     public record Submit(String taskId, String sourceVideoRef, double frameIntervalSeconds) {

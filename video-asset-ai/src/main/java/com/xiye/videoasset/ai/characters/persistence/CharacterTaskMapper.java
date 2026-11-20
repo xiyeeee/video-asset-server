@@ -13,10 +13,10 @@ public interface CharacterTaskMapper {
             id, episode_id, status, attempt_count, dispatch_attempt_count AS lease_version, source_asset_id,
             python_interval_seconds AS interval_seconds, python_stage AS stage, python_frame_count AS frame_count,
             python_detected_count AS detected_character_count, python_manifest_ref AS manifest_ref,
-            python_asset_count AS asset_count, error_code, created_at, finished_at
+            python_asset_count AS asset_count, error_code, created_at, finished_at, task_type
             """;
     String ACTIVE_LEASE = """
-            WHERE id = #{id} AND task_type = 'CHARACTER_EXTRACTION'
+            WHERE id = #{id} AND task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION')
                 AND status IN ('PENDING', 'RUNNING') AND dispatch_attempt_count = #{lease}
                 AND run_deadline > UTC_TIMESTAMP(6)
             """;
@@ -45,7 +45,7 @@ public interface CharacterTaskMapper {
 
     @Select("SELECT " + TASK_COLUMNS + """
             FROM ai_task
-            WHERE task_type = 'CHARACTER_EXTRACTION' AND status IN ('PENDING', 'RUNNING')
+            WHERE task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION') AND status IN ('PENDING', 'RUNNING')
                 AND dispatch_after <= UTC_TIMESTAMP(6) AND run_deadline > UTC_TIMESTAMP(6)
             ORDER BY dispatch_after, id LIMIT 1
             """)
@@ -58,9 +58,11 @@ public interface CharacterTaskMapper {
     int claim(@Param("id") long id, @Param("lease") long lease);
 
     @Update("""
-            UPDATE ai_task SET status = 'FAILED', error_code = 'CHARACTER_TASK_TIMEOUT',
+            UPDATE ai_task SET status = 'FAILED',
+                error_code = IF(task_type = 'CHARACTER_EXTRACTION',
+                                'CHARACTER_TASK_TIMEOUT', 'EXTRACTION_TASK_TIMEOUT'),
                 finished_at = UTC_TIMESTAMP(6), dispatch_after = NULL, run_deadline = NULL
-            WHERE task_type = 'CHARACTER_EXTRACTION' AND status IN ('PENDING', 'RUNNING')
+            WHERE task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION') AND status IN ('PENDING', 'RUNNING')
                 AND run_deadline <= UTC_TIMESTAMP(6)
             """)
     int expire();
@@ -127,11 +129,25 @@ public interface CharacterTaskMapper {
                      @Param("sourceFrame") String sourceFrame, @Param("frameCharacterNumber") int frameCharacterNumber,
                      @Param("name") String name);
 
+    @Insert("""
+            INSERT INTO asset (project_id, episode_id, asset_type, bucket, object_key, content_type, size_bytes,
+                               start_ms, end_ms, ai_task_id, original_filename)
+            VALUES (#{projectId}, #{episodeId}, 'AUDIO_TRACK', 'video-audio', #{objectKey}, 'audio/wav',
+                    #{bytes}, 0, #{durationMs}, #{taskId}, 'audio.wav')
+            """)
+    void insertAudio(@Param("projectId") long projectId, @Param("episodeId") long episodeId,
+                     @Param("objectKey") byte[] objectKey, @Param("bytes") long bytes,
+                     @Param("durationMs") long durationMs, @Param("taskId") long taskId);
+
     String VISIBLE_ASSETS = """
             FROM asset a JOIN ai_task t ON t.id = a.ai_task_id AND t.episode_id = a.episode_id
                 AND t.status = 'SUCCEEDED' AND t.task_type = 'CHARACTER_EXTRACTION'
             WHERE a.project_id = #{projectId} AND a.episode_id = #{episodeId}
                 AND a.asset_type = 'CHARACTER_IMAGE' AND a.deleted = 0
+                AND t.id = (
+                    SELECT MAX(v.id) FROM ai_task v WHERE v.episode_id = a.episode_id
+                        AND v.status = 'SUCCEEDED' AND v.task_type = 'CHARACTER_EXTRACTION'
+                )
             """;
 
     @Select("""

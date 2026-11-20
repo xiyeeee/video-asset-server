@@ -14,6 +14,9 @@ public enum ErrorCode {
     INVALID_VIDEO(400, "请选择有效的 MP4 视频文件"),
     VIDEO_TOO_LARGE(413, "视频文件超过上传大小限制"),
     VIDEO_UPLOAD_CONFLICT(409, "上传标识与已有视频不匹配"),
+    EPISODE_NUMBER_CONFLICT(409, "当前项目已使用该集号"),
+    EXTRACTION_UNSUPPORTED(422, "包含服务尚不支持的提取类型"),
+    EXTRACTION_TASK_CONFLICT(409, "任务标识已绑定其他提取参数"),
     VIDEO_STORAGE_UNAVAILABLE(503, "视频存储暂不可用，请稍后重试"),
     INTERNAL_ERROR(500, "Internal server error");
 

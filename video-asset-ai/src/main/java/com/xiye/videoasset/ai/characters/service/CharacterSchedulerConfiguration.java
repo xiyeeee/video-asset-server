@@ -15,6 +15,13 @@ class CharacterSchedulerConfiguration {
         return scheduler;
     }
 
+    @Bean("extractionJobScheduler")
+    ThreadPoolTaskScheduler extractionJobScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setThreadNamePrefix("extraction-jobs-");
+        return scheduler;
+    }
+
     @Bean("taskScheduler")
     ThreadPoolTaskScheduler taskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();

@@ -29,3 +29,26 @@ docker compose exec -T mysql sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uro
 ```
 
 Nacos 原版初始化脚本单独放在 `sql/nacos/`，由 MySQL 容器在空卷上应用。[Nacos 3.0.3 MySQL Schema](https://github.com/alibaba/nacos/blob/3.0.3/distribution/conf/mysql-schema.sql)
+
+## V7 上传自动提取
+
+V7 为 `video_episode` 增加可空的 `upload_options`，比较上传的集号、文件和自动提取参数时沿用已有幂等键。
+主任务表 `ai_extraction_job` 记录同源版本、投递时间、投递次数和期限。
+`ai_extraction_step` 按任务和提取类型唯一，关联既有 `ai_task`。
+`ai_extraction_job_state` 从真实步骤状态生成查询结果。历史剧集、首帧和人物素材可继续读取。
+音轨使用 `asset_type='AUDIO_TRACK'`，对象放在私有 `video-audio` 桶，并保留执行任务关联及音频时长。
+
+让 Auth 先应用 V7。对独立的 Media 和 AI 运行账号补齐以下权限，账号名按部署配置调整。
+媒体签名端点须能访问 `video-assets`、`video-audio` 和历史 `video-frames` 所用的对象。
+
+```sql
+GRANT SELECT, INSERT, UPDATE ON video_asset.ai_extraction_job TO 'video_asset_media'@'%';
+GRANT SELECT, INSERT, UPDATE ON video_asset.ai_extraction_step TO 'video_asset_media'@'%';
+GRANT SELECT ON video_asset.ai_extraction_job_state TO 'video_asset_media'@'%';
+GRANT SELECT ON video_asset.ai_task TO 'video_asset_media'@'%';
+GRANT SELECT, INSERT, UPDATE ON video_asset.ai_extraction_job TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, UPDATE ON video_asset.ai_extraction_step TO 'video_asset_ai'@'%';
+GRANT SELECT ON video_asset.ai_extraction_job_state TO 'video_asset_ai'@'%';
+```
+
+[状态合成、恢复与结果版本](ai-task-design.md)

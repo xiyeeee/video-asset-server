@@ -3,6 +3,7 @@ package com.xiye.videoasset.ai.characters.service;
 import com.xiye.videoasset.ai.characters.model.PythonCharacterTask;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskEntity;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskMapper;
+import com.xiye.videoasset.ai.characters.persistence.PythonExtractionKind;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskMapper.SourceVideo;
 import com.xiye.videoasset.ai.characters.service.PythonCharacterClient.Reply;
 import com.xiye.videoasset.ai.storage.AiObjectStorage.SourceSizeInvalid;
@@ -22,16 +23,18 @@ class CharacterTaskSync {
     private final PythonCharacterClient python;
     private final CharacterSharedFiles files;
     private final CharacterResultImporter importer;
+    private final AudioResultImporter audio;
     private final CharacterExtractionProperties properties;
 
     CharacterTaskSync(
             CharacterTaskMapper tasks, PythonCharacterClient python, CharacterSharedFiles files,
-            CharacterResultImporter importer, CharacterExtractionProperties properties
+            CharacterResultImporter importer, AudioResultImporter audio, CharacterExtractionProperties properties
     ) {
         this.tasks = tasks;
         this.python = python;
         this.files = files;
         this.importer = importer;
+        this.audio = audio;
         this.properties = properties;
     }
 
@@ -39,7 +42,7 @@ class CharacterTaskSync {
     void tick() {
         int expired = tasks.expire();
         if (expired > 0) {
-            LOG.warn("人物提取任务达到处理期限 errorCode=CHARACTER_TASK_TIMEOUT count={}", expired);
+            LOG.warn("Python 提取任务达到处理期限 count={}", expired);
         }
         CharacterTaskEntity task = tasks.due();
         if (task == null || tasks.claim(task.id(), task.leaseVersion()) == 0) {
@@ -57,12 +60,12 @@ class CharacterTaskSync {
             }
         } catch (IOException exception) {
             if (task.manifestRef() == null) {
-                LOG.warn("准备人物提取源文件失败 taskId={} errorCode=SHARED_INPUT_UNAVAILABLE", task.id());
+                LOG.warn("准备提取任务源文件失败 taskId={} errorCode=SHARED_INPUT_UNAVAILABLE", task.id());
             }
             pollLater(task, lease);
         } catch (DataAccessException exception) {
             if (task.manifestRef() == null) {
-                LOG.warn("同步人物任务状态失败 taskId={} errorCode=CHARACTER_DATABASE_UNAVAILABLE", task.id());
+                LOG.warn("同步提取任务状态失败 taskId={} errorCode=CHARACTER_DATABASE_UNAVAILABLE", task.id());
             }
             pollLater(task, lease);
         }
@@ -70,14 +73,17 @@ class CharacterTaskSync {
 
     private void synchronize(CharacterTaskEntity task, long lease) throws IOException {
         if (task.manifestRef() != null) {
-            if (importer.importResult(task, lease, source(task))) {
+            SourceVideo video = source(task);
+            boolean imported = task.kind() == PythonExtractionKind.AUDIO_EXTRACTION
+                    ? audio.importResult(task, lease, video) : importer.importResult(task, lease, video);
+            if (imported) {
                 files.removeInput(task.id());
             }
             return;
         }
 
         // 提交超时可能已经受理，恢复时总先查询原 ID。Python 重启后也沿用此 ID 和原参数。
-        Reply reply = python.poll(task.id(), task.attemptCount());
+        Reply reply = python.poll(task.id(), task.attemptCount(), task.kind());
         if (reply.unknownTask()) {
             if (task.attemptCount() >= MAX_SUBMISSIONS) {
                 fail(task, lease, "PYTHON_TASK_LOST");
@@ -87,7 +93,7 @@ class CharacterTaskSync {
             if (tasks.recordSubmission(task.id(), lease) == 0) {
                 return;
             }
-            reply = python.submit(task.id(), task.attemptCount() + 1, reference, task.intervalSeconds());
+            reply = python.submit(task.id(), task.attemptCount() + 1, reference, task.intervalSeconds(), task.kind());
         }
         accept(task, lease, reply);
     }
@@ -146,7 +152,7 @@ class CharacterTaskSync {
         if (tasks.fail(task.id(), lease, errorCode) == 0) {
             return false;
         }
-        LOG.warn("人物提取结束 taskId={} episodeId={} status=FAILED errorCode={}",
+        LOG.warn("提取步骤结束 taskId={} episodeId={} status=FAILED errorCode={}",
                 task.id(), task.episodeId(), errorCode);
         return true;
     }

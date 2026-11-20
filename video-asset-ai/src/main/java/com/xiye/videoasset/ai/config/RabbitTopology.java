@@ -16,6 +16,8 @@ public class RabbitTopology {
     public static final String TASK_EXCHANGE = "video.asset.ai";
     public static final String TASK_QUEUE = "video.asset.ai.task";
     public static final String TASK_ROUTING_KEY = "task.requested";
+    public static final String EXTRACTION_QUEUE = "video.asset.extraction.job";
+    public static final String EXTRACTION_ROUTING_KEY = "extraction.requested";
     static final String DEAD_LETTER_EXCHANGE = "video.asset.ai.dlx";
     static final String DEAD_LETTER_QUEUE = "video.asset.ai.task.dead";
     static final String DEAD_LETTER_ROUTING_KEY = "task.dead";
@@ -30,13 +32,17 @@ public class RabbitTopology {
                 .deadLetterExchange(DEAD_LETTER_EXCHANGE)
                 .deadLetterRoutingKey(DEAD_LETTER_ROUTING_KEY)
                 .build();
+        Queue extractionQueue = QueueBuilder.durable(EXTRACTION_QUEUE).quorum().deliveryLimit(3)
+                .deadLetterExchange(DEAD_LETTER_EXCHANGE).deadLetterRoutingKey(DEAD_LETTER_ROUTING_KEY).build();
         DirectExchange deadLetterExchange = new DirectExchange(DEAD_LETTER_EXCHANGE);
         Queue deadLetterQueue = QueueBuilder.durable(DEAD_LETTER_QUEUE).quorum().build();
         return new Declarables(
                 taskExchange,
                 taskQueue,
+                extractionQueue,
                 deadLetterExchange,
                 deadLetterQueue,
+                BindingBuilder.bind(extractionQueue).to(taskExchange).with(EXTRACTION_ROUTING_KEY),
                 BindingBuilder.bind(taskQueue).to(taskExchange).with(TASK_ROUTING_KEY),
                 BindingBuilder.bind(deadLetterQueue).to(deadLetterExchange).with(DEAD_LETTER_ROUTING_KEY));
     }

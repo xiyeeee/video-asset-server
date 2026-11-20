@@ -20,18 +20,22 @@ public class EpisodeRepository {
     private static final String SELECT_EPISODE = """
             SELECT e.id, e.project_id, e.episode_no, e.title, e.status, e.duration_ms,
                    a.original_filename, a.content_type, a.size_bytes, a.created_at,
-                   a.bucket, a.object_key
+                   a.bucket, a.object_key, a.id AS original_asset_id
             """;
-    private static final String SELECT_RESERVATION =
-            "SELECT id, upload_fingerprint, source_asset_id FROM video_episode WHERE project_id = :projectId";
+    private static final String SELECT_RESERVATION = """
+            SELECT id, upload_fingerprint, source_asset_id, episode_no, upload_options
+            FROM video_episode WHERE project_id = :projectId
+            """;
     private static final RowMapper<Reservation> RESERVATION = (row, number) -> new Reservation(
-            row.getLong("id"), row.getBytes("upload_fingerprint"), row.getObject("source_asset_id", Long.class));
+            row.getLong("id"), row.getBytes("upload_fingerprint"), row.getObject("source_asset_id", Long.class),
+            row.getLong("episode_no"), row.getString("upload_options"));
     private static final RowMapper<OriginalEpisode> EPISODE = (row, number) -> new OriginalEpisode(
             new EpisodeVO(Long.toString(row.getLong("id")), Long.toString(row.getLong("project_id")),
                     row.getLong("episode_no"), row.getString("title"), row.getString("status"),
                     row.getString("original_filename"), row.getString("content_type"), row.getLong("size_bytes"),
                     row.getObject("duration_ms", Long.class), row.getTimestamp("created_at").toInstant()),
-            row.getString("bucket"), new String(row.getBytes("object_key"), StandardCharsets.UTF_8));
+            row.getString("bucket"), new String(row.getBytes("object_key"), StandardCharsets.UTF_8),
+            row.getLong("original_asset_id"));
 
     private final JdbcClient jdbc;
 
@@ -61,15 +65,26 @@ public class EpisodeRepository {
                 .param("projectId", projectId).query(Long.class).single();
     }
 
-    public Reservation reserve(long projectId, long episodeNumber, String title, String key, byte[] fingerprint) {
+    public boolean numberExists(long projectId, long episodeNumber) {
+        return jdbc.sql("""
+                SELECT EXISTS (SELECT 1 FROM video_episode WHERE project_id = :projectId AND episode_no = :number)
+                """).param("projectId", projectId).param("number", episodeNumber).query(Boolean.class).single();
+    }
+
+    public Reservation reserve(
+            long projectId, long episodeNumber, String title, String key, byte[] fingerprint, String uploadOptions
+    ) {
         GeneratedKeyHolder keys = new GeneratedKeyHolder();
         jdbc.sql("""
-                INSERT INTO video_episode (project_id, episode_no, title, status, upload_key, upload_fingerprint)
-                VALUES (:projectId, :episodeNumber, :title, 'UPLOADING', :key, :fingerprint)
+                INSERT INTO video_episode
+                    (project_id, episode_no, title, status, upload_key, upload_fingerprint, upload_options)
+                VALUES (:projectId, :episodeNumber, :title, 'UPLOADING', :key, :fingerprint, :uploadOptions)
                 """)
                 .param("projectId", projectId).param("episodeNumber", episodeNumber).param("title", title)
-                .param("key", key).param("fingerprint", fingerprint).update(keys, "id");
-        return new Reservation(Objects.requireNonNull(keys.getKey()).longValue(), fingerprint, null);
+                .param("key", key).param("fingerprint", fingerprint).param("uploadOptions", uploadOptions)
+                .update(keys, "id");
+        return new Reservation(Objects.requireNonNull(keys.getKey()).longValue(),
+                fingerprint, null, episodeNumber, uploadOptions);
     }
 
     public long addOriginal(long projectId, long episodeId, String bucket, String key, String filename, long size) {
@@ -108,9 +123,9 @@ public class EpisodeRepository {
         return jdbc.sql("SELECT COUNT(*) " + ORIGINAL).param("projectId", projectId).query(Long.class).single();
     }
 
-    public record Reservation(long id, byte[] fingerprint, Long assetId) {
+    public record Reservation(long id, byte[] fingerprint, Long assetId, long episodeNumber, String uploadOptions) {
     }
 
-    public record OriginalEpisode(EpisodeVO view, String bucket, String key) {
+    public record OriginalEpisode(EpisodeVO view, String bucket, String key, long assetId) {
     }
 }
