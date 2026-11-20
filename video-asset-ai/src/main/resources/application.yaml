@@ -65,7 +65,7 @@ app:
     ffmpeg: ${AI_FFMPEG_PATH:ffmpeg}
     max-source-size: ${AI_MAX_SOURCE_SIZE:${VIDEO_UPLOAD_MAX_FILE_SIZE:100MB}}
   characters:
-    python-url: ${CHARACTER_PYTHON_URL:http://127.0.0.1:8000}
+    python-url: ${CHARACTER_PYTHON_URL:http://127.0.0.1:19000}
     connect-timeout: ${CHARACTER_PYTHON_CONNECT_TIMEOUT:2s}
     read-timeout: ${CHARACTER_PYTHON_READ_TIMEOUT:5s}
     input-root: ${CHARACTER_INPUT_ROOT:.local/character-input}

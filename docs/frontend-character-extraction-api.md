@@ -112,7 +112,7 @@ AI 服务需读 `video-original` 并能读写 `video-assets` 中的人物素材�
 
 | Java 配置项 | 默认值 |
 | --- | --- |
-| `CHARACTER_PYTHON_URL` | `http://127.0.0.1:8000` |
+| `CHARACTER_PYTHON_URL` | `http://127.0.0.1:19000` |
 | `CHARACTER_PYTHON_CONNECT_TIMEOUT` / `CHARACTER_PYTHON_READ_TIMEOUT` | `2s` / `5s` |
 | `CHARACTER_INPUT_ROOT` / `CHARACTER_OUTPUT_ROOT` | 相对于 Java 工作目录的 `.local/character-input` / `.local/character-output` |
 | `CHARACTER_FRAME_INTERVAL_SECONDS` | `2` 秒，任务创建时固化 |
