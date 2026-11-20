@@ -75,7 +75,8 @@ class EpisodeAssets {
     }
 
     private Long latestWorker(long episodeId, AssetKind kind) {
-        return kind == AssetKind.SHOT ? null : assets.successfulWorker(episodeId, kind.workerType);
+        // 选不到当前原视频的正式分镜时，由查询回退到历史首帧。
+        return assets.successfulWorker(episodeId, kind.workerType);
     }
 
     private void requireOwned(String subject, long episodeId) {
@@ -90,7 +91,8 @@ class EpisodeAssets {
         String key = new String(row.objectKey(), StandardCharsets.UTF_8);
         String url = storage.playbackUrl(row.episodeId(), row.bucket(), key);
         Details details = switch (type) {
-            case SHOT -> new Shot(null, row.startMs(), row.endMs(), url);
+            case SHOT -> new Shot(row.shotIndex() == null ? null : Long.toString(row.id()), row.shotIndex(),
+                    row.startMs(), row.endMs(), row.previewTimestampMs(), url);
             case CHARACTER -> new CharacterImage(null, null, row.startMs(), row.sourceFrame(),
                     row.frameCharacterNo(), url);
             case AUDIO -> new Audio("ORIGINAL_TRACK", row.startMs(), row.endMs(), url);
@@ -102,7 +104,7 @@ class EpisodeAssets {
     }
 
     enum AssetKind {
-        SHOT("STORYBOARD", "FIRST_FRAME"),
+        SHOT("STORYBOARD", "SHOT_EXTRACTION"),
         CHARACTER("CHARACTER_IMAGE", "CHARACTER_EXTRACTION"),
         AUDIO("AUDIO_TRACK", "AUDIO_EXTRACTION");
 
@@ -150,7 +152,9 @@ class EpisodeAssets {
     sealed interface Details permits Shot, CharacterImage, Audio {
     }
 
-    record Shot(String shotId, Long startMs, Long endMs, String frameUrl) implements Details {
+    record Shot(
+            String shotId, Integer shotIndex, Long startMs, Long endMs, Long previewTimestampMs, String frameUrl
+    ) implements Details {
     }
 
     record CharacterImage(

@@ -3,7 +3,6 @@ package com.xiye.videoasset.ai.characters.service;
 import com.xiye.videoasset.ai.characters.model.PythonCharacterTask;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskEntity;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskMapper;
-import com.xiye.videoasset.ai.characters.persistence.PythonExtractionKind;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskMapper.SourceVideo;
 import com.xiye.videoasset.ai.characters.service.PythonCharacterClient.Reply;
 import com.xiye.videoasset.ai.storage.AiObjectStorage.SourceSizeInvalid;
@@ -24,17 +23,20 @@ class CharacterTaskSync {
     private final CharacterSharedFiles files;
     private final CharacterResultImporter importer;
     private final AudioResultImporter audio;
+    private final ShotResultImporter shots;
     private final CharacterExtractionProperties properties;
 
     CharacterTaskSync(
             CharacterTaskMapper tasks, PythonCharacterClient python, CharacterSharedFiles files,
-            CharacterResultImporter importer, AudioResultImporter audio, CharacterExtractionProperties properties
+            CharacterResultImporter importer, AudioResultImporter audio, ShotResultImporter shots,
+            CharacterExtractionProperties properties
     ) {
         this.tasks = tasks;
         this.python = python;
         this.files = files;
         this.importer = importer;
         this.audio = audio;
+        this.shots = shots;
         this.properties = properties;
     }
 
@@ -74,8 +76,11 @@ class CharacterTaskSync {
     private void synchronize(CharacterTaskEntity task, long lease) throws IOException {
         if (task.manifestRef() != null) {
             SourceVideo video = source(task);
-            boolean imported = task.kind() == PythonExtractionKind.AUDIO_EXTRACTION
-                    ? audio.importResult(task, lease, video) : importer.importResult(task, lease, video);
+            boolean imported = switch (task.kind()) {
+                case CHARACTER_EXTRACTION -> importer.importResult(task, lease, video);
+                case AUDIO_EXTRACTION -> audio.importResult(task, lease, video);
+                case SHOT_EXTRACTION -> shots.importResult(task, lease, video);
+            };
             if (imported) {
                 files.removeInput(task.id());
             }

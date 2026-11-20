@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -51,16 +50,16 @@ class PythonCharacterClient {
     }
 
     Reply submit(long id, int attempt, String source, double interval, PythonExtractionKind kind) {
-        Object payload = kind == PythonExtractionKind.AUDIO_EXTRACTION
-                ? new AudioSubmit(Long.toString(id), source, List.of("AUDIO"))
-                : new Submit(Long.toString(id), source, interval);
+        Object payload = kind.assetBranch() == null
+                ? new Submit(Long.toString(id), source, interval)
+                : new AssetSubmit(Long.toString(id), source, List.of(kind.assetBranch()));
         RestClient.RequestHeadersSpec<?> request = client.post().uri(endpoint(kind))
                 .contentType(MediaType.APPLICATION_JSON).body(payload);
         return exchange(request, id, attempt, "提交", kind);
     }
 
     private static String endpoint(PythonExtractionKind kind) {
-        return kind == PythonExtractionKind.AUDIO_EXTRACTION ? ASSET_ENDPOINT : ENDPOINT;
+        return kind.assetBranch() == null ? ENDPOINT : ASSET_ENDPOINT;
     }
 
     private Reply exchange(
@@ -82,15 +81,17 @@ class PythonCharacterClient {
                 }
                 try {
                     if (httpStatus == 200 || httpStatus == 202) {
-                        PythonCharacterTask state = kind == PythonExtractionKind.AUDIO_EXTRACTION
-                                ? audioState(body) : mapper.readValue(body, PythonCharacterTask.class);
-                        checkState(id, state);
+                        PythonCharacterTask state = kind.assetBranch() == null
+                                ? mapper.readValue(body, PythonCharacterTask.class) : assetState(body, kind);
+                        checkState(id, state, kind);
                         return new Reply(httpStatus, state, null, requestId);
                     }
                     JsonNode error = mapper.readTree(body);
                     String code = error == null ? null : error.path("detail").path("code").asText();
                     return new Reply(httpStatus, null, safeCode(code), requestId);
-                } catch (JsonProcessingException | CharacterFailure exception) {
+                } catch (CharacterFailure failure) {
+                    return new Reply(httpStatus, null, failure.code(), requestId);
+                } catch (JsonProcessingException exception) {
                     return new Reply(httpStatus, null, "PYTHON_PROTOCOL_INVALID", requestId);
                 }
             });
@@ -115,37 +116,43 @@ class PythonCharacterClient {
         return reply;
     }
 
-    private PythonCharacterTask audioState(byte[] body) throws IOException {
-        AudioTask task = mapper.readValue(body, AudioTask.class);
-        if (task == null || task.branches() == null || !task.branches().containsKey("AUDIO")) {
+    private PythonCharacterTask assetState(byte[] body, PythonExtractionKind kind) throws IOException {
+        AssetTask task = mapper.readValue(body, AssetTask.class);
+        JsonNode selected = task == null || task.branches() == null ? null : task.branches().get(kind.assetBranch());
+        if (selected == null || !selected.isObject()) {
             throw new CharacterFailure("PYTHON_PROTOCOL_INVALID");
         }
-        AudioBranch branch = task.branches().get("AUDIO");
-        if (branch == null) {
-            throw new CharacterFailure("PYTHON_PROTOCOL_INVALID");
-        }
-        PythonCharacterTask.Result result = branch.result() == null ? null
-                : new PythonCharacterTask.Result(branch.result().audioRef(), 1);
+        AssetBranch branch = mapper.treeToValue(selected, AssetBranch.class);
+        AssetResult output = branch.result();
+        PythonCharacterTask.Result result = output == null ? null : switch (kind) {
+            case AUDIO_EXTRACTION -> new PythonCharacterTask.Result(output.audioRef(), 1);
+            case SHOT_EXTRACTION -> new PythonCharacterTask.Result(output.manifestRef(), shotCount(output.shotCount()));
+            default -> throw new CharacterFailure("PYTHON_PROTOCOL_INVALID");
+        };
         return new PythonCharacterTask(task.taskId(), branch.status(), branch.stage(),
                 new PythonCharacterTask.Progress(null, null), result, branch.error());
     }
 
-    private record AudioSubmit(String taskId, String sourceVideoRef, List<String> outputs) {
+    private static Integer shotCount(JsonNode count) {
+        return count != null && count.isIntegralNumber() && count.canConvertToInt() ? count.intValue() : null;
     }
 
-    private record AudioTask(String taskId, Map<String, AudioBranch> branches) {
+    private record AssetSubmit(String taskId, String sourceVideoRef, List<String> outputs) {
     }
 
-    private record AudioBranch(
+    private record AssetTask(String taskId, JsonNode branches) {
+    }
+
+    private record AssetBranch(
             PythonCharacterTask.Status status, PythonCharacterTask.Stage stage,
-            AudioResult result, PythonCharacterTask.Error error
+            AssetResult result, PythonCharacterTask.Error error
     ) {
     }
 
-    private record AudioResult(String audioRef) {
+    private record AssetResult(String audioRef, String manifestRef, JsonNode shotCount) {
     }
 
-    private static void checkState(long id, PythonCharacterTask state) {
+    private static void checkState(long id, PythonCharacterTask state, PythonExtractionKind kind) {
         if (state == null || !Long.toString(id).equals(state.taskId()) || state.status() == null
                 || state.progress() == null || negative(state.progress().frameCount())
                 || negative(state.progress().detectedCharacterCount())) {
@@ -160,7 +167,9 @@ class PythonCharacterClient {
         if (result != null && (result.characterAssetCount() == null || negative(result.characterAssetCount())
                 || result.manifestRef() == null || result.manifestRef().isBlank()
                 || result.manifestRef().length() > 512)) {
-            throw new CharacterFailure("PYTHON_PROTOCOL_INVALID");
+            String code = kind == PythonExtractionKind.SHOT_EXTRACTION
+                    ? "SHOT_MANIFEST_INVALID" : "PYTHON_PROTOCOL_INVALID";
+            throw new CharacterFailure(code);
         }
     }
 

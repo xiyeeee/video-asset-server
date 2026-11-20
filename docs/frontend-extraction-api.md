@@ -11,11 +11,11 @@
 | GET `/api/media/extraction-capabilities` | 无 | `200`，`data` 为所有类型及支持状态 |
 | POST `/api/media/videos/upload` | multipart，见下文 | 新上传 `201`，幂等重放 `200` |
 
-能力响应的 `data` 示例。
+分镜已在 Media 和 Java AI 启用时的 `data` 示例。
 
 ```json
 [
-  {"type":"SHOT","supported":false},
+  {"type":"SHOT","supported":true},
   {"type":"CHARACTER","supported":true},
   {"type":"DIALOGUE","supported":false},
   {"type":"BACKGROUND","supported":false},
@@ -24,8 +24,9 @@
 ]
 ```
 
-当前 Python 支持人物透明图和原音轨。分镜能力枚举保留供后续接入，历史首帧在素材库仍可读取。
-能力接口反映部署启用的处理协议。页面按该结果显示选项，默认关闭自动提取时只上传视频。
+支持分镜的 Python 版本可生成逐镜头时间线和代表图，人物透明图和原音轨仍可独立提取。
+Media 与 Java AI 默认启用人物和音轨。部署确认 Python 支持 `SHOTS` 后，两边同步设置
+`EXTRACTION_SUPPORTED_TYPES=SHOT,CHARACTER,AUDIO`，能力接口才对前端开启分镜。页面按该结果显示选项。
 
 | multipart 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -80,6 +81,9 @@ Authorization: Bearer <accessToken>
 {"episodeId":"135","extractTypes":["AUDIO","CHARACTER"]}
 ```
 
+单独发起分镜时，向同一 `POST /api/ai/tasks` 提交 `{"episodeId":"135","extractTypes":["SHOT"]}`。
+也可在 `POST /api/media/videos/upload` 中选择 `autoExtract=true` 和 `extractTypes=SHOT`。
+
 没有指定幂等键时，同一剧集原视频、同一组类型复用同一个主任务，包括上传时创建的任务。类型顺序不影响去重。
 显式幂等键可创建另一条任务记录。常规创建会复用可用的同源步骤。`regenerate:true` 须同时提供新的幂等键，会创建独立素材版本。
 重用同一个键并改变类型或 `regenerate` 返回 `409 EXTRACTION_TASK_CONFLICT`。
@@ -117,6 +121,8 @@ Authorization: Bearer <accessToken>
 
 前端仅在 `PENDING`、`RUNNING` 时每 2–3 秒轮询详情，在终态、离开页面或切换任务时停止。
 步骤阶段是 Python 已报告的真实事件，阶段可能为 `null`。成功时进度为 100，当前协议其余情况返回 `null`。
+分镜阶段为 `DETECTING_SHOTS`、`EXTRACTING_PREVIEWS`、`WRITING_RESULTS`。完整导入后，分镜步骤为
+`SUCCESS`，`assetCount` 表示实际镜头数。无切点的视频有一个覆盖全片的镜头。
 `sourceTaskId` 是产出该步骤的执行任务 ID，与任务中心的主任务 ID 不同。
 列表和素材页分页参数均从 1 开始，默认 `pageNum=1&pageSize=20`，单页最多 100 条。
 
@@ -129,12 +135,12 @@ Authorization: Bearer <accessToken>
 
 摘要始终返回六种类型。数量来自素材表，按当前默认版本统计。未发起时为 `NOT_STARTED`，已接入能力按最近状态显示
 `PENDING`、`RUNNING`、`SUCCESS` 或 `FAILED`。未支持类型为 `UNSUPPORTED`。
-零素材也可以是成功。历史首帧可读，`SHOT` 仍标为 `UNSUPPORTED`，因为当前不能启动完整切镜。
-若重新提取时失败，已发布成功版本仍可读。
+人物零素材也可以是成功。分镜摘要的 `count` 优先统计当前原视频最新的成功分镜版本。
+没有正式分镜时仍可读取历史首帧。分镜是否可发起，以能力查询为准。若重新提取时失败，已发布成功版本仍可读。
 
 ```json
 {"episodeId":"135","summary":[
-  {"type":"SHOT","count":1,"status":"UNSUPPORTED"},
+  {"type":"SHOT","count":2,"status":"SUCCESS"},
   {"type":"CHARACTER","count":6,"status":"SUCCESS"},
   {"type":"DIALOGUE","count":0,"status":"UNSUPPORTED"},
   {"type":"BACKGROUND","count":0,"status":"UNSUPPORTED"},
@@ -150,7 +156,7 @@ Authorization: Bearer <accessToken>
 | --- | --- |
 | `CHARACTER` | `characterId,shotId,timestampMs,sourceFrame,frameCharacterNumber,imageUrl`。未归组的角色或分镜关联为 `null` |
 | `AUDIO` | `audioType,startMs,endMs,audioUrl`，当前为 `ORIGINAL_TRACK` WAV |
-| `SHOT` | 历史首帧 `shotId,startMs,endMs,frameUrl`，没有正式分镜关联时 `shotId` 和 `endMs` 为 `null` |
+| `SHOT` | `shotId,shotIndex,startMs,endMs,previewTimestampMs,frameUrl`。正式分镜的 `shotId` 等于素材 `assetId`，区间为 `[startMs,endMs)` |
 | `DIALOGUE`、`BACKGROUND`、`STORY` | 当前返回空列表和 `UNSUPPORTED` |
 
 ```json
@@ -169,6 +175,21 @@ Authorization: Bearer <accessToken>
 全部时间偏移量为相对视频起点的整数毫秒，日期为 ISO 8601。签名链接通常有效 600 秒，可直接用于
 `<img>`、`<audio>` 或浏览器访问，过期后重新取当前页。素材读取和任务触发分别使用上述接口。
 
+通过 `GET /api/media/episodes/{episodeId}/assets?type=SHOT&pageNum=1&pageSize=20` 获取分镜。
+结果按 `shotIndex` 从 1 升序。第一页拿到 `sourceTaskId` 后用它固定后续页的版本，
+例如 `GET /api/media/episodes/135/assets?type=SHOT&pageNum=2&pageSize=20&sourceTaskId=922`。
+点击分镜可跳到 `startMs / 1000`，`previewTimestampMs` 记录代表图实际帧时间。
+历史首帧的 `shotId`、`shotIndex`、`previewTimestampMs` 和 `endMs` 为 `null`，适用于首帧预览。
+
+```json
+{
+  "projectId":"41","episodeId":"135","assetId":"814","assetType":"SHOT",
+  "createdAt":"2026-11-20T07:00:15Z","sourceTaskId":"922","sizeBytes":139842,"expiresInSeconds":600,
+  "details":{"shotId":"814","shotIndex":1,"startMs":0,"endMs":8000,"previewTimestampMs":4000,
+    "frameUrl":"https://media.example/signed.jpg"}
+}
+```
+
 ## 错误码
 
 | HTTP 或任务错误码 | 处理方式 |
@@ -184,4 +205,6 @@ Authorization: Bearer <accessToken>
 | `EXTRACTION_TASK_CREATE_FAILED` | 上传成功、任务建单失败，通过任务中心补建 |
 | `QUEUE_UNAVAILABLE`、`PYTHON_TASK_LOST`、`CHARACTER_TASK_TIMEOUT`、`EXTRACTION_TASK_TIMEOUT` | 任务达到恢复上限或期限，可发起重试 |
 | `AUDIO_STREAM_NOT_FOUND` | 视频无音轨，已成功的人物素材可继续使用 |
+| `SHOT_MANIFEST_INVALID` | 分镜清单的版本、数量、时间区间或预览文件校验失败 |
+| `SHOT_DETECTION_FAILED`、`SHOT_PREVIEW_FAILED`、`SHOT_WRITE_FAILED`、`SHOT_EXTRACTION_TIMEOUT` | Python 分镜处理失败，显示步骤错误，可独立重试 |
 | 其他步骤错误 | 显示步骤失败并保留任务 ID，后端按错误码排查 |

@@ -52,3 +52,10 @@ GRANT SELECT ON video_asset.ai_extraction_job_state TO 'video_asset_ai'@'%';
 ```
 
 [状态合成、恢复与结果版本](ai-task-design.md)
+
+## V8 正式分镜
+
+正式分镜在 `asset` 中沿用 `STORYBOARD`。`start_ms`、`end_ms` 记录镜头区间，
+`shot_index`、`preview_timestamp_ms` 保存镜头索引和实际帧时间。素材 ID 同时作为对外的镜头 ID。
+`(ai_task_id, shot_index)` 在同一执行版本中唯一。V8 新列可空，原有首帧继续兼容。
+分镜对象存于私有 `video-frames`，现有 AI 和 Media 账号的表权限覆盖 V8。
