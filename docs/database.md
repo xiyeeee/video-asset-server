@@ -70,3 +70,10 @@ GRANT SELECT ON video_asset.ai_extraction_job_state TO 'video_asset_ai'@'%';
 GRANT SELECT, INSERT ON video_asset.dialogue TO 'video_asset_ai'@'%';
 GRANT SELECT ON video_asset.dialogue TO 'video_asset_media'@'%';
 ```
+
+## V10 背景候选图
+
+`ai_task.input_shot_task_id` 保存背景在首次提交时使用的正式分镜版本。历史执行不需回填。
+背景 JPEG 存为 `asset_type='BACKGROUND_IMAGE'`，位于私有 `video-assets` 桶。
+`start_ms` 和 `end_ms` 是来源镜头区间，新列记录镜头索引、实际选帧时间、可用的镜头关联及检测状态。
+`(ai_task_id, background_shot_index)` 唯一。V10 沿用现有 Media 和 AI 表权限。

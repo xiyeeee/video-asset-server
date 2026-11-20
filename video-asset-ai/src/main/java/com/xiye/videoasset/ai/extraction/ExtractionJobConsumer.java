@@ -49,6 +49,7 @@ class ExtractionJobConsumer {
         String workerType = switch (step.type()) {
             case SHOT -> "SHOT_EXTRACTION";
             case DIALOGUE -> "DIALOGUE_EXTRACTION";
+            case BACKGROUND -> "BACKGROUND_EXTRACTION";
             case CHARACTER -> "CHARACTER_EXTRACTION";
             case AUDIO -> "AUDIO_EXTRACTION";
             default -> throw new IllegalStateException("无可用提取处理器");

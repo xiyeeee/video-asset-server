@@ -3,7 +3,8 @@ package com.xiye.videoasset.ai.characters.service;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskEntity;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskMapper;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskMapper.SourceVideo;
-import com.xiye.videoasset.ai.characters.service.ShotManifestReader.ShotPreview;
+import com.xiye.videoasset.ai.characters.service.JpegTimelineReader.Format;
+import com.xiye.videoasset.ai.characters.service.JpegTimelineReader.TimelineImage;
 import com.xiye.videoasset.ai.storage.AiObjectStorage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -20,13 +21,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 class ShotResultImporter {
     private static final String BUCKET = "video-frames";
     private static final Logger LOG = LoggerFactory.getLogger(ShotResultImporter.class);
-    private final ShotManifestReader reader;
+    private final JpegTimelineReader reader;
     private final AiObjectStorage storage;
     private final CharacterTaskMapper tasks;
     private final TransactionTemplate transaction;
 
     ShotResultImporter(
-            ShotManifestReader reader, AiObjectStorage storage,
+            JpegTimelineReader reader, AiObjectStorage storage,
             CharacterTaskMapper tasks, TransactionTemplate transaction
     ) {
         this.reader = reader;
@@ -49,11 +50,11 @@ class ShotResultImporter {
 
     private boolean publish(CharacterTaskEntity task, long lease, SourceVideo source, long start) throws IOException {
         // 先校验整份清单，任何坏图、缺项或非法路径都不会发布部分分镜。
-        List<ShotPreview> previews = reader.read(task.id(), task.manifestRef(), task.assetCount());
+        List<TimelineImage> previews = reader.read(task.id(), task.manifestRef(), task.assetCount(), Format.SHOT);
         String prefix = "projects/" + source.projectId() + "/episodes/" + task.episodeId()
                 + "/shots/" + task.id() + "/";
         List<UploadedShot> uploaded = new ArrayList<>(previews.size());
-        for (ShotPreview preview : previews) {
+        for (TimelineImage preview : previews) {
             if (tasks.schedule(task.id(), lease, 120) == 0) {
                 return false;
             }
@@ -70,7 +71,7 @@ class ShotResultImporter {
                 return false;
             }
             for (UploadedShot object : uploaded) {
-                ShotPreview preview = object.preview();
+                TimelineImage preview = object.preview();
                 tasks.insertShot(source.projectId(), task.episodeId(), object.key().getBytes(StandardCharsets.UTF_8),
                         preview.bytes(), task.id(), preview.timing(), object.name());
             }
@@ -88,6 +89,6 @@ class ShotResultImporter {
         return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
     }
 
-    private record UploadedShot(ShotPreview preview, String key, String name) {
+    private record UploadedShot(TimelineImage preview, String key, String name) {
     }
 }

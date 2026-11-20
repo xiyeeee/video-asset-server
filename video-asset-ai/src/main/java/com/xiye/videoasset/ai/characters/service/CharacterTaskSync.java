@@ -3,7 +3,9 @@ package com.xiye.videoasset.ai.characters.service;
 import com.xiye.videoasset.ai.characters.model.PythonCharacterTask;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskEntity;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskMapper;
+import com.xiye.videoasset.ai.characters.persistence.CharacterTaskMapper.ShotSource;
 import com.xiye.videoasset.ai.characters.persistence.CharacterTaskMapper.SourceVideo;
+import com.xiye.videoasset.ai.characters.persistence.PythonExtractionKind;
 import com.xiye.videoasset.ai.characters.service.PythonCharacterClient.Reply;
 import com.xiye.videoasset.ai.storage.AiObjectStorage.SourceSizeInvalid;
 import java.io.IOException;
@@ -25,12 +27,14 @@ class CharacterTaskSync {
     private final AudioResultImporter audio;
     private final ShotResultImporter shots;
     private final DialogueResultImporter dialogue;
+    private final BackgroundResultImporter backgrounds;
     private final CharacterExtractionProperties properties;
 
     CharacterTaskSync(
             CharacterTaskMapper tasks, PythonCharacterClient python, CharacterSharedFiles files,
             CharacterResultImporter importer, AudioResultImporter audio, ShotResultImporter shots,
-            DialogueResultImporter dialogue, CharacterExtractionProperties properties
+            DialogueResultImporter dialogue, BackgroundResultImporter backgrounds,
+            CharacterExtractionProperties properties
     ) {
         this.tasks = tasks;
         this.python = python;
@@ -39,6 +43,7 @@ class CharacterTaskSync {
         this.audio = audio;
         this.shots = shots;
         this.dialogue = dialogue;
+        this.backgrounds = backgrounds;
         this.properties = properties;
     }
 
@@ -83,6 +88,7 @@ class CharacterTaskSync {
                 case AUDIO_EXTRACTION -> audio.importResult(task, lease, video);
                 case SHOT_EXTRACTION -> shots.importResult(task, lease, video);
                 case DIALOGUE_EXTRACTION -> dialogue.importResult(task, lease, video);
+                case BACKGROUND_EXTRACTION -> backgrounds.importResult(task, lease, video);
             };
             if (imported) {
                 files.removeInput(task.id());
@@ -98,12 +104,33 @@ class CharacterTaskSync {
                 return;
             }
             String reference = files.prepare(task.id(), source(task));
-            if (tasks.recordSubmission(task.id(), lease) == 0) {
+            ShotSource shot = inputShot(task);
+            Long inputShotTaskId = shot == null ? null : shot.id();
+            if (tasks.recordSubmission(task.id(), lease, inputShotTaskId) == 0) {
                 return;
             }
-            reply = python.submit(task.id(), task.attemptCount() + 1, reference, task.intervalSeconds(), task.kind());
+            reply = python.submit(task.id(), task.attemptCount() + 1, reference, task.intervalSeconds(), task.kind(),
+                    shot == null ? null : shot.manifestRef());
         }
         accept(task, lease, reply);
+    }
+
+    private ShotSource inputShot(CharacterTaskEntity task) {
+        if (task.kind() != PythonExtractionKind.BACKGROUND_EXTRACTION) {
+            return null;
+        }
+        if (task.attemptCount() == 0) {
+            return tasks.latestShot(task.episodeId(), task.sourceAssetId());
+        }
+        // 分镜版本在首次发送前固化。Python 重启后沿用旧参数，无引用也是有效的固定选择。
+        if (task.inputShotTaskId() == null) {
+            return null;
+        }
+        ShotSource shot = tasks.selectedShot(task.episodeId(), task.sourceAssetId(), task.inputShotTaskId());
+        if (shot == null) {
+            throw new CharacterFailure("BACKGROUND_SHOT_MANIFEST_INVALID");
+        }
+        return shot;
     }
 
     private void accept(CharacterTaskEntity task, long lease, Reply reply) {

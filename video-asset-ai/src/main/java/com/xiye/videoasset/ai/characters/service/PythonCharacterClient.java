@@ -1,5 +1,6 @@
 package com.xiye.videoasset.ai.characters.service;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,10 +50,12 @@ class PythonCharacterClient {
         return exchange(client.get().uri(endpoint(kind) + "/{taskId}", id), id, attempt, "查询", kind);
     }
 
-    Reply submit(long id, int attempt, String source, double interval, PythonExtractionKind kind) {
+    Reply submit(
+            long id, int attempt, String source, double interval, PythonExtractionKind kind, String shotManifestRef
+    ) {
         Object payload = kind.assetBranch() == null
                 ? new Submit(Long.toString(id), source, interval)
-                : new AssetSubmit(Long.toString(id), source, List.of(kind.assetBranch()));
+                : new AssetSubmit(Long.toString(id), source, List.of(kind.assetBranch()), shotManifestRef);
         RestClient.RequestHeadersSpec<?> request = client.post().uri(endpoint(kind))
                 .contentType(MediaType.APPLICATION_JSON).body(payload);
         return exchange(request, id, attempt, "提交", kind);
@@ -129,6 +132,8 @@ class PythonCharacterClient {
             case SHOT_EXTRACTION -> new PythonCharacterTask.Result(output.manifestRef(), readCount(output.shotCount()));
             case DIALOGUE_EXTRACTION -> new PythonCharacterTask.Result(output.manifestRef(),
                     readCount(output.segmentCount()));
+            case BACKGROUND_EXTRACTION -> new PythonCharacterTask.Result(output.manifestRef(),
+                    readCount(output.backgroundCount()));
             default -> throw new CharacterFailure("PYTHON_PROTOCOL_INVALID");
         };
         return new PythonCharacterTask(task.taskId(), branch.status(), branch.stage(),
@@ -139,7 +144,8 @@ class PythonCharacterClient {
         return count != null && count.isIntegralNumber() && count.canConvertToInt() ? count.intValue() : null;
     }
 
-    private record AssetSubmit(String taskId, String sourceVideoRef, List<String> outputs) {
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private record AssetSubmit(String taskId, String sourceVideoRef, List<String> outputs, String shotManifestRef) {
     }
 
     private record AssetTask(String taskId, JsonNode branches) {
@@ -151,7 +157,9 @@ class PythonCharacterClient {
     ) {
     }
 
-    private record AssetResult(String audioRef, String manifestRef, JsonNode shotCount, JsonNode segmentCount) {
+    private record AssetResult(
+            String audioRef, String manifestRef, JsonNode shotCount, JsonNode segmentCount, JsonNode backgroundCount
+    ) {
     }
 
     private static void checkState(long id, PythonCharacterTask state, PythonExtractionKind kind) {
@@ -172,6 +180,7 @@ class PythonCharacterClient {
             String code = switch (kind) {
                 case SHOT_EXTRACTION -> "SHOT_MANIFEST_INVALID";
                 case DIALOGUE_EXTRACTION -> "DIALOGUE_MANIFEST_INVALID";
+                case BACKGROUND_EXTRACTION -> "BACKGROUND_MANIFEST_INVALID";
                 default -> "PYTHON_PROTOCOL_INVALID";
             };
             throw new CharacterFailure(code);

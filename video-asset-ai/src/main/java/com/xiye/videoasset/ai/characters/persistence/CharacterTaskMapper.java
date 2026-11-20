@@ -13,11 +13,12 @@ public interface CharacterTaskMapper {
             id, episode_id, status, attempt_count, dispatch_attempt_count AS lease_version, source_asset_id,
             python_interval_seconds AS interval_seconds, python_stage AS stage, python_frame_count AS frame_count,
             python_detected_count AS detected_character_count, python_manifest_ref AS manifest_ref,
-            python_asset_count AS asset_count, error_code, created_at, finished_at, task_type
+            python_asset_count AS asset_count, error_code, created_at, finished_at, task_type, input_shot_task_id
             """;
     String ACTIVE_LEASE = """
             WHERE id = #{id}
-                AND task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION', 'DIALOGUE_EXTRACTION')
+                AND task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION',
+                                  'DIALOGUE_EXTRACTION', 'BACKGROUND_EXTRACTION')
                 AND status IN ('PENDING', 'RUNNING') AND dispatch_attempt_count = #{lease}
                 AND run_deadline > UTC_TIMESTAMP(6)
             """;
@@ -46,7 +47,8 @@ public interface CharacterTaskMapper {
 
     @Select("SELECT " + TASK_COLUMNS + """
             FROM ai_task
-            WHERE task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION', 'DIALOGUE_EXTRACTION')
+            WHERE task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION',
+                                  'DIALOGUE_EXTRACTION', 'BACKGROUND_EXTRACTION')
                 AND status IN ('PENDING', 'RUNNING')
                 AND dispatch_after <= UTC_TIMESTAMP(6) AND run_deadline > UTC_TIMESTAMP(6)
             ORDER BY dispatch_after, id LIMIT 1
@@ -64,16 +66,19 @@ public interface CharacterTaskMapper {
                 error_code = IF(task_type = 'CHARACTER_EXTRACTION',
                                 'CHARACTER_TASK_TIMEOUT', 'EXTRACTION_TASK_TIMEOUT'),
                 finished_at = UTC_TIMESTAMP(6), dispatch_after = NULL, run_deadline = NULL
-            WHERE task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION', 'DIALOGUE_EXTRACTION')
+            WHERE task_type IN ('CHARACTER_EXTRACTION', 'AUDIO_EXTRACTION', 'SHOT_EXTRACTION',
+                                  'DIALOGUE_EXTRACTION', 'BACKGROUND_EXTRACTION')
                 AND status IN ('PENDING', 'RUNNING')
                 AND run_deadline <= UTC_TIMESTAMP(6)
             """)
     int expire();
 
     @Update("""
-            UPDATE ai_task SET attempt_count = attempt_count + 1
+            UPDATE ai_task SET attempt_count = attempt_count + 1, input_shot_task_id = #{inputShotTaskId}
             """ + ACTIVE_LEASE)
-    int recordSubmission(@Param("id") long id, @Param("lease") long lease);
+    int recordSubmission(
+            @Param("id") long id, @Param("lease") long lease, @Param("inputShotTaskId") Long inputShotTaskId
+    );
 
     @Update("""
             UPDATE ai_task SET dispatch_after = TIMESTAMPADD(SECOND, #{delaySeconds}, UTC_TIMESTAMP(6))
@@ -175,6 +180,55 @@ public interface CharacterTaskMapper {
     );
 
     record DialogueSegment(int index, long startMs, long endMs, String text, String speakerId) {
+    }
+
+    String SHOT_SOURCE = """
+            FROM ai_task WHERE episode_id = #{episodeId} AND source_asset_id = #{sourceAssetId}
+                AND task_type = 'SHOT_EXTRACTION' AND status = 'SUCCEEDED' AND python_manifest_ref IS NOT NULL
+            """;
+
+    @Select("SELECT id, python_manifest_ref " + SHOT_SOURCE + " ORDER BY id DESC LIMIT 1")
+    ShotSource latestShot(@Param("episodeId") long episodeId, @Param("sourceAssetId") long sourceAssetId);
+
+    @Select("SELECT id, python_manifest_ref " + SHOT_SOURCE + " AND id = #{id}")
+    ShotSource selectedShot(@Param("episodeId") long episodeId, @Param("sourceAssetId") long sourceAssetId,
+                            @Param("id") long id);
+
+    @Select("""
+            SELECT id, shot_index, start_ms, end_ms, deleted
+            FROM asset WHERE ai_task_id = #{shotTaskId} AND episode_id = #{episodeId}
+                AND project_id = #{projectId} AND asset_type = 'STORYBOARD' AND shot_index IS NOT NULL
+            ORDER BY shot_index
+            """)
+    List<SourceShot> sourceShots(@Param("shotTaskId") long shotTaskId, @Param("episodeId") long episodeId,
+                                 @Param("projectId") long projectId);
+
+    @Insert("""
+            INSERT INTO asset (project_id, episode_id, asset_type, bucket, object_key, content_type, size_bytes,
+                               start_ms, end_ms, ai_task_id, original_filename, background_shot_index,
+                               background_frame_ms, background_shot_asset_id, background_method,
+                               background_person_status, background_subtitle_status, background_review_status)
+            VALUES (#{projectId}, #{episodeId}, 'BACKGROUND_IMAGE', 'video-assets', #{objectKey}, 'image/jpeg',
+                    #{bytes}, #{item.startMs}, #{item.endMs}, #{taskId}, #{name}, #{item.shotIndex},
+                    #{item.timestampMs}, #{item.shotId}, #{item.method}, #{item.personStatus}, #{item.subtitleStatus},
+                    #{item.reviewStatus})
+            """)
+    void insertBackground(
+            @Param("projectId") long projectId, @Param("episodeId") long episodeId, @Param("taskId") long taskId,
+            @Param("objectKey") byte[] objectKey, @Param("bytes") long bytes, @Param("name") String name,
+            @Param("item") BackgroundMetadata item
+    );
+
+    record ShotSource(long id, String manifestRef) {
+    }
+
+    record SourceShot(long id, int index, long startMs, long endMs, boolean deleted) {
+    }
+
+    record BackgroundMetadata(
+            int shotIndex, long startMs, long endMs, long timestampMs, Long shotId,
+            String method, String personStatus, String subtitleStatus, String reviewStatus
+    ) {
     }
 
     String VISIBLE_ASSETS = """

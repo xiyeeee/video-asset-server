@@ -110,6 +110,11 @@ class EpisodeAssets {
             case CHARACTER -> new CharacterImage(null, null, row.startMs(), row.sourceFrame(),
                     row.frameCharacterNo(), url);
             case AUDIO -> new Audio("ORIGINAL_TRACK", row.startMs(), row.endMs(), url);
+            case BACKGROUND -> new Background(
+                    row.backgroundShotAssetId() == null ? null : row.backgroundShotAssetId().toString(),
+                    row.backgroundShotIndex(), row.startMs(), row.endMs(), row.backgroundFrameMs(),
+                    row.backgroundMethod(), row.backgroundPersonStatus(), row.backgroundSubtitleStatus(),
+                    row.backgroundReviewStatus(), url);
             default -> throw new IllegalStateException("不存在的素材映射");
         };
         String taskId = row.aiTaskId() == null ? null : row.aiTaskId().toString();
@@ -129,7 +134,8 @@ class EpisodeAssets {
         SHOT("STORYBOARD", "SHOT_EXTRACTION"),
         CHARACTER("CHARACTER_IMAGE", "CHARACTER_EXTRACTION"),
         AUDIO("AUDIO_TRACK", "AUDIO_EXTRACTION"),
-        DIALOGUE(null, "DIALOGUE_EXTRACTION");
+        DIALOGUE(null, "DIALOGUE_EXTRACTION"),
+        BACKGROUND("BACKGROUND_IMAGE", "BACKGROUND_EXTRACTION");
 
         final String assetType;
         final String workerType;
@@ -145,6 +151,7 @@ class EpisodeAssets {
                 case CHARACTER -> CHARACTER;
                 case AUDIO -> AUDIO;
                 case DIALOGUE -> DIALOGUE;
+                case BACKGROUND -> BACKGROUND;
                 default -> null;
             };
         }
@@ -173,7 +180,7 @@ class EpisodeAssets {
         }
     }
 
-    sealed interface Details permits Shot, CharacterImage, Audio, Dialogue {
+    sealed interface Details permits Shot, CharacterImage, Audio, Dialogue, Background {
     }
 
     record Shot(
@@ -192,6 +199,12 @@ class EpisodeAssets {
 
     record Dialogue(
             int segmentIndex, long startMs, long endMs, String text, String speakerId, String characterId
+    ) implements Details {
+    }
+
+    record Background(
+            String shotId, int shotIndex, long startMs, long endMs, long timestampMs,
+            String method, String personStatus, String subtitleStatus, String reviewStatus, String imageUrl
     ) implements Details {
     }
 }

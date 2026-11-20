@@ -60,8 +60,13 @@ interface EpisodeAssetMapper {
     @Select("""
             SELECT a.id, a.project_id, a.episode_id, a.ai_task_id, a.created_at, a.bucket, a.object_key,
                    a.start_ms, a.end_ms, a.source_frame, a.frame_character_no, a.size_bytes,
-                   a.shot_index, a.preview_timestamp_ms
-            """ + ASSETS + " ORDER BY a.shot_index, a.start_ms, a.id LIMIT #{size} OFFSET #{offset}")
+                   a.shot_index, a.preview_timestamp_ms, a.background_shot_index, a.background_frame_ms,
+                   a.background_shot_asset_id, a.background_method, a.background_person_status,
+                   a.background_subtitle_status, a.background_review_status
+            """ + ASSETS + """
+                ORDER BY COALESCE(a.shot_index, a.background_shot_index), a.start_ms, a.id
+                LIMIT #{size} OFFSET #{offset}
+            """)
     List<AssetRow> list(
             @Param("episodeId") long episodeId, @Param("assetType") String assetType,
             @Param("sourceTaskId") Long sourceTaskId, @Param("size") int size, @Param("offset") long offset
@@ -102,7 +107,9 @@ interface EpisodeAssetMapper {
     record AssetRow(
             long id, long projectId, long episodeId, Long aiTaskId, Instant createdAt, String bucket, byte[] objectKey,
             Long startMs, Long endMs, String sourceFrame, Integer frameCharacterNo, long sizeBytes,
-            Integer shotIndex, Long previewTimestampMs
+            Integer shotIndex, Long previewTimestampMs, Integer backgroundShotIndex, Long backgroundFrameMs,
+            Long backgroundShotAssetId, String backgroundMethod, String backgroundPersonStatus,
+            String backgroundSubtitleStatus, String backgroundReviewStatus
     ) {
     }
 }

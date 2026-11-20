@@ -4,7 +4,8 @@ public enum PythonExtractionKind {
     CHARACTER_EXTRACTION(null),
     AUDIO_EXTRACTION("AUDIO"),
     SHOT_EXTRACTION("SHOTS"),
-    DIALOGUE_EXTRACTION("DIALOGUE");
+    DIALOGUE_EXTRACTION("DIALOGUE"),
+    BACKGROUND_EXTRACTION("BACKGROUND");
 
     private final String assetBranch;
 
