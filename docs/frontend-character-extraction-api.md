@@ -127,7 +127,7 @@ Python 使用单个 worker，仅向 Java 开放内部 HTTP 端口。启动及权
 # 在 Python 仓库根目录运行，对应 Java 默认目录
 CHARACTER_INPUT_ROOT="$PWD/../video-asset-server/.local/character-input" \
 CHARACTER_OUTPUT_ROOT="$PWD/../video-asset-server/.local/character-output" \
-uv run --extra characters uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+uv run --extra characters uvicorn app.main:app --host 127.0.0.1 --port 19000 --workers 1
 ```
 
 Java 遇到提交超时先查原任务 ID。Python 明确返回 `TASK_NOT_FOUND` 时才沿用原任务参数重提，总计最多提交三次。
