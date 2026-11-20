@@ -28,15 +28,15 @@ flowchart LR
 本地开发先运行 Auth 应用 Flyway V10，再启动 Media、Gateway、Java AI 和 Python。Java AI 默认连接
 `CHARACTER_PYTHON_URL=http://127.0.0.1:19000`。共享路径、Python 单进程和权重配置沿用
 [人物提取服务配置](frontend-character-extraction-api.md#本地联调与部署)。Media 与 Java AI 使用同一
-`EXTRACTION_SUPPORTED_TYPES`，默认 `SHOT,CHARACTER,AUDIO`。Python 继续使用端口 `19000`。
+`EXTRACTION_SUPPORTED_TYPES`，默认 `SHOT,CHARACTER,AUDIO,BACKGROUND`。Python 继续使用端口 `19000`。
 
 对白部署先确认 Python 已安装 `dialogue` 依赖、转写模型权重就绪并能完成 `outputs:["DIALOGUE"]`。
 本地可在 Python 仓库运行 `uv sync --extra characters --extra dialogue`，沿用同一套共享目录启动服务。
 应用 V9 并按 [数据库授权](database.md#v9-对白提取) 补齐权限后，两边同步配置
 `EXTRACTION_SUPPORTED_TYPES=SHOT,CHARACTER,AUDIO,DIALOGUE`。
 
-Python 部署版可完成 `outputs:["BACKGROUND"]` 后，在 Media 和 Java AI 已启用类型中同步追加
-`BACKGROUND`，例如 `EXTRACTION_SUPPORTED_TYPES=SHOT,CHARACTER,AUDIO,DIALOGUE,BACKGROUND`。
+Media 和 Java AI 的 `EXTRACTION_SUPPORTED_TYPES` 需保持一致；若启用对白，配置为
+`SHOT,CHARACTER,AUDIO,DIALOGUE,BACKGROUND`。背景提取还要求 Python 部署版支持 `outputs:["BACKGROUND"]`。
 Python 需能从共享输出目录读取此前发布的分镜清单。该目录保留仍有复用需求的分镜产物。
 
 - 人物沿用 `/internal/v1/character-extraction/tasks`，继续使用 FFmpeg 抽帧和既有人物检测、分割模型。

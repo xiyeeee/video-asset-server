@@ -28,7 +28,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 })
 public class AiApplication {
     @Bean
-    ExtractionPlan extractionPlan(@Value("${EXTRACTION_SUPPORTED_TYPES:SHOT,CHARACTER,AUDIO}") String types) {
+    ExtractionPlan extractionPlan(
+            @Value("${EXTRACTION_SUPPORTED_TYPES:SHOT,CHARACTER,AUDIO,BACKGROUND}") String types
+    ) {
         return new ExtractionPlan(types);
     }
 

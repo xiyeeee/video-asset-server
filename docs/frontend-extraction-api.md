@@ -18,14 +18,14 @@
   {"type":"SHOT","supported":true},
   {"type":"CHARACTER","supported":true},
   {"type":"DIALOGUE","supported":true},
-  {"type":"BACKGROUND","supported":false},
+  {"type":"BACKGROUND","supported":true},
   {"type":"AUDIO","supported":true},
   {"type":"STORY","supported":false}
 ]
 ```
 
 支持分镜的 Python 版本可生成逐镜头时间线和代表图，人物透明图和原音轨仍可独立提取。
-Media 与 Java AI 默认启用分镜、人物和音轨，`EXTRACTION_SUPPORTED_TYPES=SHOT,CHARACTER,AUDIO`。页面按能力接口的结果显示选项。
+Media 与 Java AI 默认启用分镜、人物、音轨和背景，`EXTRACTION_SUPPORTED_TYPES=SHOT,CHARACTER,AUDIO,BACKGROUND`。页面按能力接口的结果显示选项。
 确认 Python 已能执行 `DIALOGUE` 后，在两边的能力配置中同步追加 `DIALOGUE`，再开放上传和任务中心的对白选项。
 
 | multipart 字段 | 类型 | 说明 |
