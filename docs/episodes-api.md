@@ -13,7 +13,7 @@ Auth 执行 Flyway V4。继续使用已有的 `video_episode` 和 `asset` 两张
 | `asset(project_id,episode_id,id)` 唯一索引 | 支持原视频复合外键 |
 
 已有集号唯一约束 `(project_id, episode_no)` 继续生效。上传先保留集数和对象键，MinIO 完成写入后，
-在同一数据库事务中写入素材元数据并把集数改为 `PENDING`（待解析）。该流程允许已保留集号出现跳号。
+在同一数据库事务中写入素材元数据并把集数状态改为 `PENDING`，表示原视频已保存。该流程允许已保留集号出现跳号。
 列表只返回已绑定原视频的集数。既有记录的新增字段均可空，未绑定原视频时无需回填。
 
 `asset` 记录 `ORIGINAL_VIDEO`、私有 Bucket `video-original`、内部对象键、`video/mp4`、文件字节数和原始文件名。
@@ -53,7 +53,10 @@ GRANT SELECT, INSERT ON video_asset.asset TO 'video_asset_media'@'%';
 幂等键支持 1–100 位 ASCII 字母、数字、`.`、`_`、`:` 和 `-`，前端可使用 UUID。
 在同一项目内用同一键重试必须上传字节和文件名相同的文件。
 
-集数按 `episodeNumber` 升序。首次上传后的 `status` 是 `PENDING`（待解析），表示原视频已保存。
+集数按 `episodeNumber` 升序。原有 `status` 描述上传记录，原视频保存后为 `PENDING`。
+列表展示使用 `extractionStatus`，从当前原视频的任务记录实时计算。状态依次判断 `RUNNING`（解析中）、
+`QUEUED`（排队中）、`SUCCEEDED`（至少一种提取成功）、`FAILED`（有失败且没有成功）和
+`NOT_STARTED`（尚未提交）。历史成功结果也适用，具体素材类型的状态以任务中心为准。
 ID 为十进制字符串，`durationMs` 为毫秒，尚未探测时返回 `null`。
 `uploadedAt` 为 UTC 时间，`sizeBytes` 为文件字节数。
 
@@ -64,6 +67,7 @@ ID 为十进制字符串，`durationMs` 为毫秒，尚未探测时返回 `null`
   "episodeNumber": 1,
   "title": "第1集",
   "status": "PENDING",
+  "extractionStatus": "NOT_STARTED",
   "originalFilename": "第1集.mp4",
   "contentType": "video/mp4",
   "sizeBytes": 1128375,

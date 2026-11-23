@@ -1,6 +1,7 @@
 package com.xiye.videoasset.media.episode.persistence;
 
 import com.xiye.videoasset.media.episode.model.EpisodeVO;
+import com.xiye.videoasset.media.episode.model.EpisodeVO.ExtractionStatus;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
@@ -17,10 +18,30 @@ public class EpisodeRepository {
             JOIN asset a ON a.id = e.source_asset_id AND a.project_id = e.project_id AND a.episode_id = e.id
             WHERE e.project_id = :projectId AND a.asset_type = 'ORIGINAL_VIDEO' AND a.deleted = 0
             """;
+    // 执行中和排队优先展示。后台重跑失败时，已有成功结果仍标为已解析。
     private static final String SELECT_EPISODE = """
             SELECT e.id, e.project_id, e.episode_no, e.title, e.status, e.duration_ms,
                    a.original_filename, a.content_type, a.size_bytes, a.created_at,
-                   a.bucket, a.object_key, a.id AS original_asset_id
+                   a.bucket, a.object_key, a.id AS original_asset_id,
+                   CASE GREATEST(
+                       COALESCE((
+                           SELECT MAX(CASE t.status
+                               WHEN 'RUNNING' THEN 4 WHEN 'PENDING' THEN 3
+                               WHEN 'SUCCEEDED' THEN 2 WHEN 'FAILED' THEN 1 ELSE 0 END)
+                           FROM ai_task t WHERE t.episode_id = e.id
+                               AND (t.source_asset_id = e.source_asset_id
+                                    OR (t.task_type = 'FIRST_FRAME' AND t.source_asset_id IS NULL))
+                       ), 0),
+                       COALESCE((
+                           SELECT MAX(CASE WHEN j.dispatch_failed_at IS NULL THEN 3 ELSE 1 END)
+                           FROM ai_extraction_job j JOIN ai_extraction_step s ON s.job_id = j.id
+                           WHERE j.episode_id = e.id AND j.source_asset_id = e.source_asset_id
+                               AND s.worker_task_id IS NULL
+                       ), 0)
+                   )
+                       WHEN 4 THEN 'RUNNING' WHEN 3 THEN 'QUEUED'
+                       WHEN 2 THEN 'SUCCEEDED' WHEN 1 THEN 'FAILED' ELSE 'NOT_STARTED'
+                   END AS extraction_status
             """;
     private static final String SELECT_RESERVATION = """
             SELECT id, upload_fingerprint, source_asset_id, episode_no, upload_options
@@ -33,7 +54,8 @@ public class EpisodeRepository {
             new EpisodeVO(Long.toString(row.getLong("id")), Long.toString(row.getLong("project_id")),
                     row.getLong("episode_no"), row.getString("title"), row.getString("status"),
                     row.getString("original_filename"), row.getString("content_type"), row.getLong("size_bytes"),
-                    row.getObject("duration_ms", Long.class), row.getTimestamp("created_at").toInstant()),
+                    row.getObject("duration_ms", Long.class), row.getTimestamp("created_at").toInstant(),
+                    ExtractionStatus.valueOf(row.getString("extraction_status"))),
             row.getString("bucket"), new String(row.getBytes("object_key"), StandardCharsets.UTF_8),
             row.getLong("original_asset_id"));
 

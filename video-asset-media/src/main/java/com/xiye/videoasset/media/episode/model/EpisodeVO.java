@@ -12,6 +12,10 @@ public record EpisodeVO(
         String contentType,
         long sizeBytes,
         Long durationMs,
-        Instant uploadedAt
+        Instant uploadedAt,
+        ExtractionStatus extractionStatus
 ) {
+    public enum ExtractionStatus {
+        NOT_STARTED, QUEUED, RUNNING, SUCCEEDED, FAILED
+    }
 }
