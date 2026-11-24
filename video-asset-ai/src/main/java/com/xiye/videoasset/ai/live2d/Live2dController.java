@@ -3,9 +3,12 @@ package com.xiye.videoasset.ai.live2d;
 import com.xiye.videoasset.ai.live2d.Live2dService.ServedFile;
 import com.xiye.videoasset.common.ErrorCode;
 import com.xiye.videoasset.common.Result;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
@@ -15,8 +18,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -65,6 +70,24 @@ class Live2dController {
     ) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(Result.ok(history.versions(jwt.getSubject(), projectId, characterId, page, size)));
+    }
+
+    @PatchMapping("/live2d/characters/{characterId}")
+    ResponseEntity<Result<Void>> renameCharacter(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long projectId,
+            @PathVariable @Positive long characterId, @Valid @RequestBody RenameCharacter request
+    ) {
+        history.renameCharacter(jwt.getSubject(), projectId, characterId, request.name());
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Result.ok(null));
+    }
+
+    @DeleteMapping("/live2d/characters/{characterId}")
+    ResponseEntity<Result<Void>> deleteCharacter(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long projectId,
+            @PathVariable @Positive long characterId
+    ) {
+        history.deleteCharacter(jwt.getSubject(), projectId, characterId);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Result.ok(null));
     }
 
     @GetMapping("/live2d/characters/{characterId}/versions/{versionId}")
@@ -136,5 +159,8 @@ class Live2dController {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     ResponseEntity<Result<Void>> tooLarge() {
         return ResponseEntity.status(413).body(Result.error(ErrorCode.IMAGE_TOO_LARGE));
+    }
+
+    record RenameCharacter(@NotBlank @Size(max = 150) String name) {
     }
 }

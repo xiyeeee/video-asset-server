@@ -13,6 +13,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 class Live2dHistory {
@@ -20,13 +21,16 @@ class Live2dHistory {
     private final Live2dHistoryMapper history;
     private final Live2dService service;
     private final AiObjectStorage storage;
+    private final TransactionTemplate transaction;
 
     Live2dHistory(
-            Live2dHistoryMapper history, Live2dService service, AiObjectStorage storage
+            Live2dHistoryMapper history, Live2dService service, AiObjectStorage storage,
+            TransactionTemplate transaction
     ) {
         this.history = history;
         this.service = service;
         this.storage = storage;
+        this.transaction = transaction;
     }
 
     // 调用方持有任务行锁，版本与任务成功在同一事务提交。
@@ -83,6 +87,45 @@ class Live2dHistory {
         List<VersionView> items = history.versions(project, character, size, offset(page, size)).stream()
                 .map(version -> summary(project, version)).toList();
         return new Page<>(items, page, size, history.versionCount(project, character));
+    }
+
+    void renameCharacter(String subject, long project, long character, String requestedName) {
+        service.owned(subject, project);
+        String name = requestedName == null ? "" : requestedName.strip();
+        int nameLength = name.codePointCount(0, name.length());
+        if (nameLength < 1 || nameLength > 150 || name.codePoints().anyMatch(Character::isISOControl)) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST);
+        }
+        Boolean renamed = transaction.execute(status -> {
+            if (history.lockCharacter(project, character) == null) {
+                return false;
+            }
+            history.renameCharacter(project, character, name);
+            return true;
+        });
+        if (!Boolean.TRUE.equals(renamed)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+        LOG.info("Live2D 角色已重命名 projectId={} characterId={}", project, character);
+    }
+
+    void deleteCharacter(String subject, long project, long character) {
+        service.owned(subject, project);
+        Boolean deleted = transaction.execute(status -> {
+            if (history.lockCharacter(project, character) == null) {
+                return false;
+            }
+            // 生成发布也会先更新角色行；行锁保证删除与最后一次版本归档按顺序完成。
+            if (history.hasPendingTasks(project, character)) {
+                throw new BusinessException(ErrorCode.LIVE2D_CHARACTER_BUSY);
+            }
+            history.releaseCharacterSources(project, character);
+            return history.deleteCharacter(project, character) == 1;
+        });
+        if (!Boolean.TRUE.equals(deleted)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+        LOG.info("Live2D 角色已软删除 projectId={} characterId={}", project, character);
     }
 
     Detail detail(String subject, long project, long character, long id) {

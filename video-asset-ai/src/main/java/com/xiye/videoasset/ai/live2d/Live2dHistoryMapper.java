@@ -29,6 +29,39 @@ interface Live2dHistoryMapper {
             """)
     boolean hasCharacter(@Param("project") long project, @Param("character") long character);
 
+    @Select("""
+            SELECT id FROM `character`
+            WHERE project_id=#{project} AND id=#{character} AND deleted=0 FOR UPDATE
+            """)
+    Long lockCharacter(@Param("project") long project, @Param("character") long character);
+
+    @Update("""
+            UPDATE `character` SET name=#{name}
+            WHERE project_id=#{project} AND id=#{character} AND deleted=0
+            """)
+    int renameCharacter(@Param("project") long project, @Param("character") long character,
+                        @Param("name") String name);
+
+    @Select("""
+            SELECT EXISTS(SELECT 1 FROM live2d_task
+                WHERE project_id=#{project} AND character_id=#{character}
+                    AND (status IN ('QUEUED','RUNNING') OR (status='FAILED' AND artifact_ref IS NOT NULL
+                        AND error_code IN ('LIVE2D_SAVE_TIMEOUT','ARTIFACT_MISSING'))))
+            """)
+    boolean hasPendingTasks(@Param("project") long project, @Param("character") long character);
+
+    @Update("""
+            UPDATE `character` SET deleted=1
+            WHERE project_id=#{project} AND id=#{character} AND deleted=0
+            """)
+    int deleteCharacter(@Param("project") long project, @Param("character") long character);
+
+    @Update("""
+            UPDATE live2d_character_source SET character_id=NULL
+            WHERE project_id=#{project} AND character_id=#{character}
+            """)
+    int releaseCharacterSources(@Param("project") long project, @Param("character") long character);
+
     @Insert("""
             INSERT INTO live2d_character_source(project_id,source_asset_id)
             VALUES(#{project},#{source}) ON DUPLICATE KEY UPDATE source_asset_id=live2d_character_source.source_asset_id
@@ -36,7 +69,9 @@ interface Live2dHistoryMapper {
     void reserveSource(@Param("project") long project, @Param("source") long source);
 
     @Select("""
-            SELECT character_id FROM live2d_character_source WHERE project_id=#{project} AND source_asset_id=#{source}
+            SELECT s.character_id FROM live2d_character_source s
+            JOIN `character` c ON c.project_id=s.project_id AND c.id=s.character_id AND c.deleted=0
+            WHERE s.project_id=#{project} AND s.source_asset_id=#{source}
             """)
     Long sourceCharacter(@Param("project") long project, @Param("source") long source);
 

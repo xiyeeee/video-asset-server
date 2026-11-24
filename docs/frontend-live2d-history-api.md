@@ -9,6 +9,8 @@
 | 方法及相对路径 | 用途 |
 | --- | --- |
 | `GET /characters?page=1&size=20` | 列出当前项目已有可用模型的角色 |
+| `PATCH /characters/{characterId}` | 修改角色名称 |
+| `DELETE /characters/{characterId}` | 软删除角色并从历史列表隐藏 |
 | `GET /characters/{characterId}/versions?page=1&size=20` | 列出指定角色的已保存版本 |
 | `GET /characters/{characterId}/versions/{versionId}` | 获取版本详情及新签发的模型入口 |
 | `GET /characters/{characterId}/versions/{versionId}/download` | 下载该版本完整 ZIP |
@@ -50,6 +52,20 @@
 ```
 
 `AVAILABLE` 表示发布时 ZIP、入口和依赖已通过检查并写入持久化存储。失败或等待保存的任务不会进入历史。头像和缩略图来自版本来源图，字段可为空。有效地址仅用于当次展示，不宜持久化。
+
+## 修改或删除角色
+
+修改角色名：`PATCH /api/projects/27/live2d/characters/31`，Bearer 鉴权。
+
+```json
+{"name":"许宁·新名称"}
+```
+
+成功返回 HTTP 200 和 `{"code":"OK","message":"Success","data":null}`。名称会去除首尾空白，长度为 1 到 150 个 Unicode 字符；角色列表刷新后显示新名称。已生成版本中的 `modelName` 保留生成当时的名称，不随角色重命名。
+
+删除角色：`DELETE /api/projects/27/live2d/characters/31`，成功返回相同的 HTTP 200 空数据响应。删除采用软删除：角色和其历史版本从角色/历史查询、预览、下载中隐藏；模型 ZIP、素材文件及版本数据库记录不会物理删除。该角色存在 `QUEUED`、`RUNNING` 或仍可重试保存的任务时返回 HTTP 409 `LIVE2D_CHARACTER_BUSY`，任务完成或不可重试后可重试删除。
+
+项目不属于当前用户、角色不存在或角色已删除时返回 HTTP 404。名称无效返回 HTTP 400 `INVALID_REQUEST`。前端在成功后刷新角色列表，并在删除当前角色时选择列表中的下一个角色；若已无角色则显示空状态。
 
 ## 预览或下载
 
