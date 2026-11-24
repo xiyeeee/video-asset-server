@@ -78,10 +78,24 @@ public class AiObjectStorage {
 
     public void put(String bucket, String key, String contentType, Path file, long bytes) throws IOException {
         try (InputStream input = Files.newInputStream(file)) {
+            put(bucket, key, contentType, input, bytes);
+        }
+    }
+
+    public void put(String bucket, String key, String contentType, InputStream input, long bytes) throws IOException {
+        try {
             internal.putObject(PutObjectArgs.builder().bucket(bucket).object(key)
                     .contentType(contentType).stream(input, bytes, -1).build());
         } catch (Exception exception) {
             throw new IOException("保存素材失败", exception);
+        }
+    }
+
+    public InputStream open(String bucket, String key) throws IOException {
+        try {
+            return internal.getObject(GetObjectArgs.builder().bucket(bucket).object(key).build());
+        } catch (Exception exception) {
+            throw new IOException("读取对象失败", exception);
         }
     }
 

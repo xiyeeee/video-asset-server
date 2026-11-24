@@ -5,6 +5,10 @@ server:
     include-stacktrace: never
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
   application:
     name: video-asset-ai
   datasource:
@@ -61,6 +65,13 @@ spring:
           enabled: false
 
 app:
+  live2d:
+    python-url: ${LIVE2D_PYTHON_URL:${CHARACTER_PYTHON_URL:http://127.0.0.1:19000}}
+    input-root: ${LIVE2D_INPUT_ROOT:.local/live2d-input}
+    output-root: ${LIVE2D_OUTPUT_ROOT:.local/live2d-output}
+    connect-timeout: ${LIVE2D_CONNECT_TIMEOUT:2s}
+    read-timeout: ${LIVE2D_READ_TIMEOUT:5s}
+    task-timeout: ${LIVE2D_TASK_TIMEOUT:1h}
   analysis:
     ffmpeg: ${AI_FFMPEG_PATH:ffmpeg}
     max-source-size: ${AI_MAX_SOURCE_SIZE:${VIDEO_UPLOAD_MAX_FILE_SIZE:100MB}}

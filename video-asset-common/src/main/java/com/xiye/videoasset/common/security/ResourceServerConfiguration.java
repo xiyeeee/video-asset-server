@@ -49,6 +49,8 @@ public class ResourceServerConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> {
                     requests.requestMatchers(HttpMethod.GET, ApiPaths.HEALTH, ApiPaths.HEALTH + "/**").permitAll();
+                    // 模型依赖由相对 URL 加载，资源入口验证短期、单模型票据。
+                    requests.requestMatchers(HttpMethod.GET, "/projects/*/live2d/models/*/files/**").permitAll();
                     if (environment.acceptsProfiles(Profiles.of("dev & !prod"))) {
                         requests.requestMatchers(HttpMethod.GET, ApiPaths.DEV_PROBE).permitAll();
                     }

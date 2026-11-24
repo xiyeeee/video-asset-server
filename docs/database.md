@@ -77,3 +77,17 @@ GRANT SELECT ON video_asset.dialogue TO 'video_asset_media'@'%';
 背景 JPEG 存为 `asset_type='BACKGROUND_IMAGE'`，位于私有 `video-assets` 桶。
 `start_ms` 和 `end_ms` 是来源镜头区间，新列记录镜头索引、实际选帧时间、可用的镜头关联及检测状态。
 `(ai_task_id, background_shot_index)` 唯一。V10 沿用现有 Media 和 AI 表权限。
+
+## V11 Live2D 图片转模型
+
+`live2d_task` 保存项目级任务、输入图片、轮询进度和模型资产 ID。
+`live2d_model_file` 按模型资产 ID 和包内路径登记可加载的模型资源。
+上传图片和模型 ZIP 分别使用 `LIVE2D_SOURCE_IMAGE` 和 `LIVE2D_MODEL` 素材类型，存入私有 `video-assets` 桶。
+历史项目、剧集和人物素材无需回填。
+
+让 Auth 先应用 V11，再为 Java AI 运行账号授权并启动新版 AI 和网关。
+
+```sql
+GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_task TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT ON video_asset.live2d_model_file TO 'video_asset_ai'@'%';
+```

@@ -12,6 +12,8 @@ public enum ErrorCode {
     MAIL_UNAVAILABLE(503, "邮件服务暂不可用，请稍后重试"),
     AUTH_UNAVAILABLE(503, "认证服务暂不可用，请稍后重试"),
     INVALID_VIDEO(400, "请选择有效的 MP4 视频文件"),
+    INVALID_IMAGE(400, "请选择有效的 PNG、JPEG 或 WebP 图片"),
+    IMAGE_TOO_LARGE(413, "图片超过 10 MiB"),
     VIDEO_TOO_LARGE(413, "视频文件超过上传大小限制"),
     VIDEO_UPLOAD_CONFLICT(409, "上传标识与已有视频不匹配"),
     EPISODE_NUMBER_CONFLICT(409, "当前项目已使用该集号"),

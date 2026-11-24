@@ -28,6 +28,8 @@ docker compose ps -a
 
 提交首帧解析、查询任务和预览分镜见 [首帧解析 API](docs/analysis-api.md) 与 [前端对接文档 v1.0.5](docs/prompts/v1.0.5.md)。
 
+图片转 Live2D、任务轮询和模型资源加载见 [Live2D 前端联调文档](docs/frontend-live2d-api.md)。
+
 人物提取任务、透明 PNG 素材和 Python 共享目录配置见 [人物素材提取 API](docs/frontend-character-extraction-api.md)。
 
 上传触发、任务中心和分类素材查询见 [自动提取 API](docs/frontend-extraction-api.md) 与 [部署流程](docs/extraction-workflow.md)。
