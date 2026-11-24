@@ -7,6 +7,8 @@ import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import io.minio.StatObjectArgs;
+import io.minio.errors.ErrorResponseException;
 import io.minio.http.Method;
 import java.io.IOException;
 import java.io.InputStream;
@@ -96,6 +98,19 @@ public class AiObjectStorage {
             return internal.getObject(GetObjectArgs.builder().bucket(bucket).object(key).build());
         } catch (Exception exception) {
             throw new IOException("读取对象失败", exception);
+        }
+    }
+
+    public Long objectSize(String bucket, String key) throws IOException {
+        try {
+            return internal.statObject(StatObjectArgs.builder().bucket(bucket).object(key).build()).size();
+        } catch (ErrorResponseException exception) {
+            if ("NoSuchKey".equals(exception.errorResponse().code())) {
+                return null;
+            }
+            throw new IOException("检查对象失败", exception);
+        } catch (Exception exception) {
+            throw new IOException("检查对象失败", exception);
         }
     }
 

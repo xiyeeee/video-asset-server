@@ -107,3 +107,5 @@
 ## 联调环境
 
 Auth 先应用数据库 V11，Java AI 与网关使用新版。Java 配置 `LIVE2D_PYTHON_URL`，并与 Python 共享 `LIVE2D_INPUT_ROOT` 和 `LIVE2D_OUTPUT_ROOT` 对应的物理目录。Java 写输入、读输出，Python 读输入、写输出。分进程部署时应配置共享用户组或容器挂载权限。Python 需启用实际转换器、Cubism Core 校验和可用的图层分解服务，才能转换新图片。
+
+模型历史、版本详情和 ZIP 下载见 [前端模型历史联调文档](frontend-live2d-history-api.md)。

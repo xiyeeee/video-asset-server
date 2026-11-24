@@ -91,3 +91,19 @@ GRANT SELECT ON video_asset.dialogue TO 'video_asset_media'@'%';
 GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_task TO 'video_asset_ai'@'%';
 GRANT SELECT, INSERT ON video_asset.live2d_model_file TO 'video_asset_ai'@'%';
 ```
+
+## V12 Live2D 模型历史
+
+`live2d_model_version` 将已保存的 ZIP 素材关联到项目、角色、源图片和任务。
+同一任务只登记一次，每个角色的版本号由 `character.live2d_version` 在事务内递增。
+`live2d_character_source` 为没有传角色 ID 的旧任务和客户端保留项目内的素材归属。
+旧版本补录检查 MinIO 中的 ZIP、入口和依赖，未补录原因记录在 `live2d_task.history_issue`。
+
+先由 Auth 执行 Flyway，再向 AI 运行账号补齐权限。模型包仍使用私有 `video-assets` 桶。
+
+```sql
+GRANT SELECT, INSERT ON video_asset.`character` TO 'video_asset_ai'@'%';
+GRANT UPDATE (live2d_version) ON video_asset.`character` TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_character_source TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT ON video_asset.live2d_model_version TO 'video_asset_ai'@'%';
+```

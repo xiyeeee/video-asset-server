@@ -1,6 +1,8 @@
 package com.xiye.videoasset.ai.live2d;
 
 import com.xiye.videoasset.ai.analysis.service.EpisodeAnalysisAccess;
+import com.xiye.videoasset.ai.live2d.Live2dHistoryMapper.Published;
+import com.xiye.videoasset.ai.live2d.Live2dTaskVO.SaveStatus;
 import com.xiye.videoasset.ai.storage.AiObjectStorage;
 import com.xiye.videoasset.common.BusinessException;
 import com.xiye.videoasset.common.ErrorCode;
@@ -22,6 +24,7 @@ class Live2dService {
     private static final String TICKET = "live2d:resource:";
     private static final Duration ENTRY_TTL = Duration.ofMinutes(10);
     private final Live2dMapper tasks;
+    private final Live2dHistoryMapper history;
     private final EpisodeAnalysisAccess access;
     private final AiObjectStorage storage;
     private final Live2dAssets assets;
@@ -29,10 +32,11 @@ class Live2dService {
     private final StringRedisTemplate redis;
 
     Live2dService(
-            Live2dMapper tasks, EpisodeAnalysisAccess access, AiObjectStorage storage,
+            Live2dMapper tasks, Live2dHistoryMapper history, EpisodeAnalysisAccess access, AiObjectStorage storage,
             Live2dAssets assets, Live2dSettings settings, StringRedisTemplate redis
     ) {
         this.tasks = tasks;
+        this.history = history;
         this.access = access;
         this.storage = storage;
         this.assets = assets;
@@ -75,10 +79,14 @@ class Live2dService {
         }
         long source = id(asset ? request.sourceAssetId() : request.uploadFileId());
         Live2dImages.validate(tasks.image(project, source, asset ? "CHARACTER_IMAGE" : Live2dAssets.SOURCE));
+        Long character = request.characterId() == null ? null : id(request.characterId());
+        if (character != null && !history.hasCharacter(project, character)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
         String task = newId();
-        tasks.create(task, project, source, name, settings.taskTimeout().toSeconds());
-        LOG.info("Live2D 任务已入队 taskId={} projectId={}", task, project);
-        return new Live2dTaskVO(task, Live2dTask.Status.QUEUED, null, null, null);
+        tasks.create(task, project, source, name, character, settings.taskTimeout().toSeconds());
+        LOG.info("Live2D 任务已入队 taskId={} projectId={} characterId={}", task, project, character);
+        return new Live2dTaskVO(task, Live2dTask.Status.QUEUED, null, null, null, SaveStatus.NOT_STARTED, null);
     }
 
     Live2dTaskVO query(String subject, long project, String id) {
@@ -97,25 +105,55 @@ class Live2dService {
         }
         Live2dTaskVO.Result result = null;
         Live2dTaskVO.Error error = null;
+        SaveStatus saveStatus = SaveStatus.NOT_STARTED;
+        String saveError = null;
         if (task.status() == Live2dTask.Status.SUCCEEDED) {
-            long model = task.modelAssetId();
-            if (tasks.resource(project, model, task.manifestPath()) == null) {
-                throw new BusinessException(ErrorCode.NOT_FOUND);
+            Long model = task.modelAssetId();
+            Published version = history.published(id);
+            if (model != null && tasks.resource(project, model, task.manifestPath()) != null) {
+                result = new Live2dTaskVO.Result(Long.toString(model), entryUrl(project, model, task.manifestPath()),
+                        version == null ? null : Long.toString(version.characterId()),
+                        version == null ? null : Long.toString(version.id()));
             }
-            String ticket = newId() + newId();
-            redis.opsForValue().set(TICKET + ticket, binding(project, model), ENTRY_TTL);
-            String url = "/api/projects/" + project + "/live2d/models/" + model + "/files/" + ticket + "/"
-                    + UriUtils.encodePath(task.manifestPath(), StandardCharsets.UTF_8);
-            result = new Live2dTaskVO.Result(Long.toString(model), url);
+            saveError = task.historyIssue();
+            saveStatus = version == null ? SaveStatus.SAVING : SaveStatus.SAVED;
+        } else if (task.artifactRef() != null) {
+            saveStatus = SaveStatus.SAVING;
+            saveError = task.errorCode();
+        }
+        if (saveError != null) {
+            saveStatus = SaveStatus.FAILED;
         }
         if (task.errorCode() != null) {
-            error = new Live2dTaskVO.Error(task.errorCode(), Live2dFailure.message(task.errorCode()), task.errorStage());
+            error = new Live2dTaskVO.Error(
+                    task.errorCode(), Live2dFailure.message(task.errorCode()), task.errorStage());
         }
-        return new Live2dTaskVO(id, task.status(), task.stage(), result, error);
+        return new Live2dTaskVO(id, task.status(), task.stage(), result, error, saveStatus, saveError);
+    }
+
+    Live2dTaskVO retrySave(String subject, long project, String id) {
+        owned(subject, project);
+        Live2dTask task = tasks.get(id, project);
+        if (task == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+        if (tasks.retrySave(project, id, settings.taskTimeout().toSeconds()) == 0) {
+            throw new BusinessException(ErrorCode.LIVE2D_SAVE_NOT_RETRYABLE);
+        }
+        LOG.info("Live2D 已重新安排保存 taskId={} projectId={} characterId={}", id, project, task.characterId());
+        return view(project, id);
+    }
+
+    String entryUrl(long project, long model, String manifest) {
+        String ticket = newId() + newId();
+        redis.opsForValue().set(TICKET + ticket, binding(project, model), ENTRY_TTL);
+        return "/api/projects/" + project + "/live2d/models/" + model + "/files/" + ticket + "/"
+                + UriUtils.encodePath(manifest, StandardCharsets.UTF_8);
     }
 
     ServedFile resource(long project, long model, String ticket, String path) {
-        if (!Live2dArchive.validPath(path) || !binding(project, model).equals(redis.opsForValue().get(TICKET + ticket))) {
+        if (!Live2dArchive.validPath(path)
+                || !binding(project, model).equals(redis.opsForValue().get(TICKET + ticket))) {
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
         Live2dMapper.Resource resource = tasks.resource(project, model, path);
@@ -130,7 +168,7 @@ class Live2dService {
         }
     }
 
-    private void owned(String subject, long project) {
+    void owned(String subject, long project) {
         if (!tasks.owns(project, access.requireActiveUser(subject))) {
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
@@ -156,7 +194,7 @@ class Live2dService {
         throw new BusinessException(ErrorCode.INVALID_REQUEST);
     }
 
-    record Create(String modelName, String sourceAssetId, String uploadFileId) {
+    record Create(String modelName, String sourceAssetId, String uploadFileId, String characterId) {
     }
 
     record Upload(String uploadFileId, String contentType, long sizeBytes) {

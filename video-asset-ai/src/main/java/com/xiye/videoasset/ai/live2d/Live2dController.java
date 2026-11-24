@@ -3,10 +3,13 @@ package com.xiye.videoasset.ai.live2d;
 import com.xiye.videoasset.ai.live2d.Live2dService.ServedFile;
 import com.xiye.videoasset.common.ErrorCode;
 import com.xiye.videoasset.common.Result;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,9 +31,63 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 @RequestMapping("/projects/{projectId}")
 class Live2dController {
     private final Live2dService service;
+    private final Live2dHistory history;
 
-    Live2dController(Live2dService service) {
+    Live2dController(Live2dService service, Live2dHistory history) {
         this.service = service;
+        this.history = history;
+    }
+
+    @PostMapping("/live2d/tasks/{taskId}/retry-save")
+    ResponseEntity<Result<Live2dTaskVO>> retrySave(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long projectId,
+            @PathVariable @Pattern(regexp = "[a-f0-9]{32}") String taskId
+    ) {
+        return ResponseEntity.accepted().cacheControl(CacheControl.noStore())
+                .body(Result.ok(service.retrySave(jwt.getSubject(), projectId, taskId)));
+    }
+
+    @GetMapping("/live2d/characters")
+    ResponseEntity<Result<Live2dHistory.Page<Live2dHistory.CharacterView>>> characters(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long projectId,
+            @RequestParam(defaultValue = "1") @Positive int page,
+            @RequestParam(defaultValue = "20") @Positive @Max(100) int size
+    ) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(Result.ok(history.characters(jwt.getSubject(), projectId, page, size)));
+    }
+
+    @GetMapping("/live2d/characters/{characterId}/versions")
+    ResponseEntity<Result<Live2dHistory.Page<Live2dHistory.VersionView>>> versions(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long projectId,
+            @PathVariable @Positive long characterId, @RequestParam(defaultValue = "1") @Positive int page,
+            @RequestParam(defaultValue = "20") @Positive @Max(100) int size
+    ) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(Result.ok(history.versions(jwt.getSubject(), projectId, characterId, page, size)));
+    }
+
+    @GetMapping("/live2d/characters/{characterId}/versions/{versionId}")
+    ResponseEntity<Result<Live2dHistory.Detail>> version(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long projectId,
+            @PathVariable @Positive long characterId, @PathVariable @Positive long versionId
+    ) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(Result.ok(history.detail(jwt.getSubject(), projectId, characterId, versionId)));
+    }
+
+    @GetMapping("/live2d/characters/{characterId}/versions/{versionId}/download")
+    ResponseEntity<InputStreamResource> download(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long projectId,
+            @PathVariable @Positive long characterId, @PathVariable @Positive long versionId
+    ) {
+        ServedFile file = history.download(jwt.getSubject(), projectId, characterId, versionId);
+        String disposition = ContentDisposition.attachment().filename("live2d-" + versionId + ".zip")
+                .build().toString();
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition).contentLength(file.size())
+                .contentType(MediaType.parseMediaType(file.contentType()))
+                .body(new InputStreamResource(file.content()));
     }
 
     @PostMapping(value = "/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

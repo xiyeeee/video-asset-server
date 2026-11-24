@@ -11,7 +11,7 @@ import org.apache.ibatis.annotations.Update;
 interface Live2dMapper {
     String COLUMNS = """
             id, project_id, source_asset_id, model_name, model_asset_id, status, stage, manifest_path,
-            artifact_ref, error_code, error_stage, lease_version, submission_count
+            artifact_ref, error_code, error_stage, lease_version, submission_count, character_id, history_issue
             """;
     String ACTIVE = """
             WHERE id=#{id} AND lease_version=#{lease} AND status IN ('QUEUED','RUNNING')
@@ -35,12 +35,12 @@ interface Live2dMapper {
     Image source(@Param("project") long project, @Param("id") long id);
 
     @Insert("""
-            INSERT INTO live2d_task (id,project_id,source_asset_id,model_name,status,next_poll,deadline)
-            VALUES (#{id},#{project},#{source},#{name},'QUEUED',UTC_TIMESTAMP(6),
+            INSERT INTO live2d_task (id,project_id,source_asset_id,model_name,character_id,status,next_poll,deadline)
+            VALUES (#{id},#{project},#{source},#{name},#{character},'QUEUED',UTC_TIMESTAMP(6),
                     TIMESTAMPADD(SECOND,#{timeout},UTC_TIMESTAMP(6)))
             """)
     void create(@Param("id") String id, @Param("project") long project, @Param("source") long source,
-                @Param("name") String name, @Param("timeout") long timeout);
+                @Param("name") String name, @Param("character") Long character, @Param("timeout") long timeout);
 
     @Select("SELECT " + COLUMNS + " FROM live2d_task WHERE id=#{id} AND project_id=#{project}")
     Live2dTask get(@Param("id") String id, @Param("project") long project);
@@ -67,7 +67,9 @@ interface Live2dMapper {
     int claim(@Param("id") String id, @Param("lease") int lease);
 
     @Update("""
-            UPDATE live2d_task SET status='FAILED', error_code='LIVE2D_TASK_TIMEOUT', error_stage=stage, next_poll=NULL
+            UPDATE live2d_task SET status='FAILED',
+                error_code=IF(artifact_ref IS NULL,'LIVE2D_TASK_TIMEOUT','LIVE2D_SAVE_TIMEOUT'),
+                error_stage=stage, next_poll=NULL
             WHERE status IN ('QUEUED','RUNNING') AND deadline<=UTC_TIMESTAMP(6)
             """)
     int expire();
@@ -104,7 +106,7 @@ interface Live2dMapper {
     @Update("""
             UPDATE live2d_task SET status='FAILED', stage=COALESCE(#{stage},stage),
                 error_code=#{error}, error_stage=COALESCE(#{stage},stage), next_poll=NULL
-            WHERE id=#{id} AND status IN ('QUEUED','RUNNING') AND deadline>UTC_TIMESTAMP(6)
+            WHERE id=#{id} AND status IN ('QUEUED','RUNNING') AND deadline>UTC_TIMESTAMP(6) AND artifact_ref IS NULL
             """)
     int failOpen(@Param("id") String id, @Param("error") String error, @Param("stage") String stage);
 
@@ -130,6 +132,14 @@ interface Live2dMapper {
     @Update("UPDATE live2d_task SET status='SUCCEEDED', model_asset_id=#{model}, next_poll=NULL " + ACTIVE)
     int succeed(@Param("id") String id, @Param("lease") int lease, @Param("model") long model);
 
+    @Update("""
+            UPDATE live2d_task SET status='RUNNING', next_poll=UTC_TIMESTAMP(6),
+                deadline=TIMESTAMPADD(SECOND,#{timeout},UTC_TIMESTAMP(6)), error_code=NULL, error_stage=NULL
+            WHERE id=#{id} AND project_id=#{project} AND status='FAILED' AND artifact_ref IS NOT NULL
+                AND error_code IN ('LIVE2D_SAVE_TIMEOUT','ARTIFACT_MISSING')
+            """)
+    int retrySave(@Param("project") long project, @Param("id") String id, @Param("timeout") long timeout);
+
     @Insert("""
             INSERT INTO live2d_model_file(model_asset_id,path,content_type,size_bytes)
             VALUES (#{model},#{path},#{type},#{size})
@@ -138,11 +148,14 @@ interface Live2dMapper {
               @Param("type") String type, @Param("size") long size);
 
     @Select("""
-            SELECT t.id, f.content_type, f.size_bytes
+            SELECT COALESCE(v.task_id,t.id) AS taskId, f.content_type, f.size_bytes
             FROM live2d_model_file f JOIN asset a ON a.id=f.model_asset_id AND a.deleted=0
             JOIN project p ON p.id=a.project_id AND p.deleted=0
-            JOIN live2d_task t ON t.model_asset_id=a.id AND t.project_id=p.id AND t.status='SUCCEEDED'
+            LEFT JOIN live2d_model_version v ON v.id=a.id AND v.project_id=p.id
+            LEFT JOIN `character` c ON c.id=v.character_id AND c.project_id=v.project_id AND c.deleted=0
+            LEFT JOIN live2d_task t ON t.model_asset_id=a.id AND t.project_id=p.id AND t.status='SUCCEEDED'
             WHERE p.id=#{project} AND a.id=#{model} AND f.path=#{path}
+                AND ((v.id IS NOT NULL AND c.id IS NOT NULL) OR (v.id IS NULL AND t.id IS NOT NULL))
             """)
     Resource resource(@Param("project") long project, @Param("model") long model, @Param("path") String path);
 

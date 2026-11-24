@@ -1,12 +1,14 @@
 package com.xiye.videoasset.ai.live2d;
 
 import com.xiye.videoasset.ai.live2d.Live2dArchive.ModelFile;
+import com.xiye.videoasset.ai.live2d.Live2dHistoryMapper.Published;
 import com.xiye.videoasset.ai.live2d.Live2dPython.Reply;
 import com.xiye.videoasset.ai.storage.AiObjectStorage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -27,12 +29,15 @@ class Live2dWorker {
     private final Live2dArchive archives;
     private final AiObjectStorage storage;
     private final Live2dAssets assets;
+    private final Live2dHistory history;
+    private final Live2dPackages packages;
     private final TransactionTemplate transaction;
     private final Live2dHub hub;
 
     Live2dWorker(
             Live2dMapper tasks, Live2dImages images, Live2dPython python, Live2dArchive archives,
-            AiObjectStorage storage, Live2dAssets assets, TransactionTemplate transaction, Live2dHub hub
+            AiObjectStorage storage, Live2dAssets assets, Live2dHistory history, Live2dPackages packages,
+            TransactionTemplate transaction, Live2dHub hub
     ) {
         this.tasks = tasks;
         this.images = images;
@@ -40,13 +45,15 @@ class Live2dWorker {
         this.archives = archives;
         this.storage = storage;
         this.assets = assets;
+        this.history = history;
+        this.packages = packages;
         this.transaction = transaction;
         this.hub = hub;
     }
 
     @Scheduled(fixedDelay = 1500, scheduler = "live2dScheduler")
     void tick() {
-        var overdue = tasks.overdue();
+        List<Live2dMapper.Notice> overdue = tasks.overdue();
         int expired = tasks.expire();
         if (expired > 0) {
             LOG.warn("Live2D 任务到达期限 count={}", expired);
@@ -68,8 +75,8 @@ class Live2dWorker {
         } catch (Live2dFailure failure) {
             fail(task, lease, failure.getMessage(), task.stage());
         } catch (IOException | DataAccessException exception) {
-            LOG.warn("Live2D 同步暂不可用 taskId={} projectId={} exceptionType={}",
-                    task.id(), task.projectId(), exception.getClass().getSimpleName());
+            LOG.warn("Live2D 同步暂不可用 taskId={} projectId={} characterId={} exceptionType={}",
+                    task.id(), task.projectId(), task.characterId(), exception.getClass().getSimpleName());
             tasks.schedule(task.id(), lease, RETRY_SECONDS);
         }
     }
@@ -95,43 +102,52 @@ class Live2dWorker {
 
     private void importPackage(Live2dTask task, int lease) throws IOException {
         long started = System.nanoTime();
-        Path zip = archives.locate(task);
         Path temp = Files.createTempDirectory("video-asset-live2d-");
         try {
-            Map<String, ModelFile> files = archives.unpack(zip, temp, task.manifestPath());
             String root = Live2dAssets.root(task.projectId(), task.id());
+            String zipKey = root + "model.zip";
+            Path zip = localPackage(task, zipKey, temp.resolve("upload.zip"));
+            Map<String, ModelFile> files = archives.unpack(zip, Files.createDirectory(temp.resolve("files")),
+                    task.manifestPath());
+            if (tasks.schedule(task.id(), lease, 120) == 0) {
+                return;
+            }
+            long zipBytes = Files.size(zip);
+            // 先持久化完整包。其余文件写入失败后，原工作目录删除也可用该包重试。
+            if (!zip.startsWith(temp)) {
+                storage.put(Live2dAssets.BUCKET, zipKey, "application/zip", zip, zipBytes);
+            }
+            packages.requireSize(Live2dAssets.BUCKET, zipKey, zipBytes);
             for (Map.Entry<String, ModelFile> entry : files.entrySet()) {
                 if (tasks.schedule(task.id(), lease, 120) == 0) {
                     return;
                 }
                 ModelFile file = entry.getValue();
-                storage.put(Live2dAssets.BUCKET, root + "files/" + entry.getKey(),
-                        file.contentType(), file.path(), file.size());
+                String key = root + "files/" + entry.getKey();
+                storage.put(Live2dAssets.BUCKET, key, file.contentType(), file.path(), file.size());
+                packages.requireSize(Live2dAssets.BUCKET, key, file.size());
             }
-            if (tasks.schedule(task.id(), lease, 120) == 0) {
-                return;
-            }
-            long zipBytes = Files.size(zip);
-            storage.put(Live2dAssets.BUCKET, root + "model.zip", "application/zip", zip, zipBytes);
-            Boolean committed = transaction.execute(tx -> {
+            Published version = transaction.execute(tx -> {
                 // 固定对象键允许重新导入；任务行锁使同一任务只登记一个模型资产。
                 if (tasks.lock(task.id(), lease) == null) {
-                    return false;
+                    return null;
                 }
-                long model = assets.insert(task.projectId(), Live2dAssets.MODEL, root + "model.zip", "model.zip",
+                long model = assets.insert(task.projectId(), Live2dAssets.MODEL, zipKey, "model.zip",
                         "application/zip", zipBytes);
                 for (Map.Entry<String, ModelFile> entry : files.entrySet()) {
                     tasks.file(model, entry.getKey(), entry.getValue().contentType(), entry.getValue().size());
                 }
+                Published published = history.publish(task.id(), task.projectId(), task.sourceAssetId(),
+                        task.modelName(), task.characterId(), model);
                 if (tasks.succeed(task.id(), lease, model) == 0) {
                     tx.setRollbackOnly();
-                    return false;
+                    return null;
                 }
-                return true;
+                return published;
             });
-            if (Boolean.TRUE.equals(committed)) {
-                LOG.info("Live2D 模型已发布 taskId={} projectId={} fileCount={} durationMs={}",
-                        task.id(), task.projectId(), files.size(),
+            if (version != null) {
+                LOG.info("Live2D 模型已发布 taskId={} projectId={} characterId={} versionId={} fileCount={} durationMs={}",
+                        task.id(), task.projectId(), version.characterId(), version.id(), files.size(),
                         TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
                 hub.publish(task.projectId(), task.id());
             }
@@ -140,7 +156,22 @@ class Live2dWorker {
         }
     }
 
-    private static void clean(Path temp, String taskId) {
+    private Path localPackage(Live2dTask task, String key, Path target) throws IOException {
+        try {
+            return archives.locate(task);
+        } catch (Live2dFailure failure) {
+            if (!"ARTIFACT_MISSING".equals(failure.getMessage())) {
+                throw failure;
+            }
+            Long bytes = storage.objectSize(Live2dAssets.BUCKET, key);
+            if (bytes == null) {
+                throw failure;
+            }
+            return packages.copyStored(Live2dAssets.BUCKET, key, bytes, target);
+        }
+    }
+
+    static void clean(Path temp, String taskId) {
         try (Stream<Path> files = Files.walk(temp)) {
             for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
                 Files.deleteIfExists(file);
@@ -152,8 +183,8 @@ class Live2dWorker {
 
     private void fail(Live2dTask task, int lease, String code, String stage) {
         if (tasks.fail(task.id(), lease, code, stage) > 0) {
-            LOG.warn("Live2D 任务失败 taskId={} projectId={} stage={} errorCode={}",
-                    task.id(), task.projectId(), stage, code);
+            LOG.warn("Live2D 任务失败 taskId={} projectId={} characterId={} stage={} errorCode={}",
+                    task.id(), task.projectId(), task.characterId(), stage, code);
             hub.publish(task.projectId(), task.id());
         }
     }

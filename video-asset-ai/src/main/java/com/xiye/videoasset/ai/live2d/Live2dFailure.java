@@ -10,6 +10,9 @@ final class Live2dFailure extends RuntimeException {
             case "CONVERTER_UNAVAILABLE", "CUBISM_CORE_UNAVAILABLE", "IMAGE_DECODER_UNAVAILABLE" ->
                     "模型生成服务暂不可用，请联系管理员";
             case "CONVERTER_TIMEOUT", "LIVE2D_TASK_TIMEOUT" -> "模型生成超时，请稍后重新提交";
+            case "LIVE2D_SAVE_TIMEOUT" -> "模型已生成，保存超时，请重试保存";
+            case "HISTORY_CHARACTER_UNAVAILABLE" -> "模型所属角色已不可用";
+            case "HISTORY_SOURCE_UNAVAILABLE" -> "历史模型的来源归属无法确认";
             case "SOURCE_IMAGE_INVALID", "SOURCE_IMAGE_REF_INVALID", "SOURCE_IMAGE_NOT_FOUND" ->
                     "找不到源图片或图片无法读取，请重新上传";
             case "ARTIFACT_MISSING", "ARTIFACT_WRITE_FAILED" -> "生成服务未发布完整的模型包";

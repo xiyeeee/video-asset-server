@@ -19,6 +19,7 @@ public enum ErrorCode {
     EPISODE_NUMBER_CONFLICT(409, "当前项目已使用该集号"),
     EXTRACTION_UNSUPPORTED(422, "包含服务尚不支持的提取类型"),
     EXTRACTION_TASK_CONFLICT(409, "任务标识已绑定其他提取参数"),
+    LIVE2D_SAVE_NOT_RETRYABLE(409, "当前任务没有可重试保存的模型包"),
     VIDEO_STORAGE_UNAVAILABLE(503, "视频存储暂不可用，请稍后重试"),
     INTERNAL_ERROR(500, "Internal server error");
 
