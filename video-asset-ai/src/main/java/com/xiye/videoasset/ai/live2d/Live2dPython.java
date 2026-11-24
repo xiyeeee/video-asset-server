@@ -40,6 +40,17 @@ class Live2dPython {
         return exchange(task, "查询", client.get().uri(ENDPOINT + "/{id}", task.id()));
     }
 
+    Snapshot readEvent(String body, Live2dTask task) {
+        if (body == null || body.length() > 65_536) {
+            throw new Live2dFailure("PYTHON_PROTOCOL_INVALID");
+        }
+        try {
+            return validate(task, mapper.readValue(body, Snapshot.class));
+        } catch (IOException exception) {
+            throw new Live2dFailure("PYTHON_PROTOCOL_INVALID");
+        }
+    }
+
     Reply submit(Live2dTask task, String source) {
         Submit payload = new Submit(task.id(), Long.toString(task.projectId()), task.modelName(), source);
         return exchange(task, "提交", client.post().uri(ENDPOINT).contentType(MediaType.APPLICATION_JSON).body(payload));

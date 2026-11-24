@@ -83,9 +83,17 @@ class Live2dService {
 
     Live2dTaskVO query(String subject, long project, String id) {
         owned(subject, project);
+        Live2dTaskVO view = view(project, id);
+        if (view == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+        return view;
+    }
+
+    Live2dTaskVO view(long project, String id) {
         Live2dTask task = tasks.get(id, project);
         if (task == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND);
+            return null;
         }
         Live2dTaskVO.Result result = null;
         Live2dTaskVO.Error error = null;

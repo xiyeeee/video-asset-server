@@ -1,5 +1,6 @@
 package com.xiye.videoasset.ai.live2d;
 
+import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -44,6 +45,15 @@ interface Live2dMapper {
     @Select("SELECT " + COLUMNS + " FROM live2d_task WHERE id=#{id} AND project_id=#{project}")
     Live2dTask get(@Param("id") String id, @Param("project") long project);
 
+    @Select("SELECT " + COLUMNS + " FROM live2d_task WHERE id=#{id}")
+    Live2dTask find(@Param("id") String id);
+
+    @Select("""
+            SELECT id, project_id AS projectId FROM live2d_task
+            WHERE status IN ('QUEUED','RUNNING') AND deadline<=UTC_TIMESTAMP(6)
+            """)
+    List<Notice> overdue();
+
     @Select("SELECT " + COLUMNS + """
             FROM live2d_task WHERE status IN ('QUEUED','RUNNING')
                 AND next_poll<=UTC_TIMESTAMP(6) AND deadline>UTC_TIMESTAMP(6)
@@ -67,6 +77,36 @@ interface Live2dMapper {
 
     @Update("UPDATE live2d_task SET next_poll=TIMESTAMPADD(SECOND,#{delay},UTC_TIMESTAMP(6)) " + ACTIVE)
     int schedule(@Param("id") String id, @Param("lease") int lease, @Param("delay") long delay);
+
+    @Update("""
+            UPDATE live2d_task SET next_poll=NULL
+            WHERE id=#{id} AND lease_version=#{lease} AND status IN ('QUEUED','RUNNING')
+                AND artifact_ref IS NULL AND deadline>UTC_TIMESTAMP(6)
+            """)
+    int awaitPush(@Param("id") String id, @Param("lease") int lease);
+
+    @Update("""
+            UPDATE live2d_task SET status=#{status}, stage=#{stage}, next_poll=NULL
+            WHERE id=#{id} AND status IN ('QUEUED','RUNNING') AND artifact_ref IS NULL
+                AND deadline>UTC_TIMESTAMP(6) AND (status='QUEUED' OR #{status}<>'QUEUED')
+            """)
+    int report(@Param("id") String id, @Param("status") Live2dTask.Status status, @Param("stage") String stage);
+
+    @Update("""
+            UPDATE live2d_task SET status='RUNNING', stage=#{stage},
+                manifest_path=#{manifest}, artifact_ref=#{artifact}, next_poll=UTC_TIMESTAMP(6)
+            WHERE id=#{id} AND status IN ('QUEUED','RUNNING') AND artifact_ref IS NULL
+                AND deadline>UTC_TIMESTAMP(6)
+            """)
+    int attach(@Param("id") String id, @Param("stage") String stage,
+               @Param("manifest") String manifest, @Param("artifact") String artifact);
+
+    @Update("""
+            UPDATE live2d_task SET status='FAILED', stage=COALESCE(#{stage},stage),
+                error_code=#{error}, error_stage=COALESCE(#{stage},stage), next_poll=NULL
+            WHERE id=#{id} AND status IN ('QUEUED','RUNNING') AND deadline>UTC_TIMESTAMP(6)
+            """)
+    int failOpen(@Param("id") String id, @Param("error") String error, @Param("stage") String stage);
 
     @Update("""
             UPDATE live2d_task SET status=#{status}, stage=#{stage},
@@ -110,5 +150,8 @@ interface Live2dMapper {
     }
 
     record Resource(String taskId, String contentType, long bytes) {
+    }
+
+    record Notice(String id, long projectId) {
     }
 }

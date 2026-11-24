@@ -40,9 +40,13 @@
 }
 ```
 
-## 3. 查询任务
+## 3. 接收任务状态
 
-`GET /api/projects/{projectId}/live2d/tasks/{taskId}`。提交后每 2 至 3 秒轮询一次，收到 `SUCCEEDED` 或 `FAILED` 时结束。临时网络错误可继续轮询，401 时走项目已有的登录或刷新流程。
+提交成功后连接 `WebSocket /api/projects/{projectId}/live2d/tasks/{taskId}/events`。浏览器不能给 WebSocket 设置 `Authorization`，因此握手时同时提供两个子协议：`video-asset.bearer` 和访问令牌。服务端只回选 `video-asset.bearer`，令牌不会出现在地址里。
+
+连接建立后服务端立即发送当前任务快照，之后每次状态变化再发一条。消息体就是查询接口 `data` 中的任务对象，没有外层 `{code,message,data}`。收到 `SUCCEEDED` 或 `FAILED` 后关闭连接。离开页面或切换项目时也要关闭，避免旧任务覆盖当前项目。连接中途断开可以重新握手，新连接会再次收到当前快照，不需要按固定间隔查询。
+
+`GET /api/projects/{projectId}/live2d/tasks/{taskId}` 仍保留。模型入口票据过期时用它取新的 `modelEntryUrl`。401 时走项目已有的登录失效流程。
 
 | status | 含义 |
 | --- | --- |

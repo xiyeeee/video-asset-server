@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiye.videoasset.common.ApiPaths;
 import com.xiye.videoasset.common.ErrorCode;
 import com.xiye.videoasset.common.Result;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,6 +16,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
@@ -62,6 +64,7 @@ public class ResourceServerConfiguration {
                 .oauth2ResourceServer(oauth -> oauth
                         .authenticationEntryPoint(unauthorized)
                         .accessDeniedHandler(forbidden)
+                        .bearerTokenResolver(ResourceServerConfiguration::resolveBearer)
                         .jwt(Customizer.withDefaults()))
                 .build();
     }
@@ -86,6 +89,31 @@ public class ResourceServerConfiguration {
                     JwtValidators.createDefaultWithIssuer(issuer), audienceValidator, expiryValidator));
             return decoder;
         }
+    }
+
+    private static String resolveBearer(HttpServletRequest request) {
+        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (header != null && header.regionMatches(true, 0, "Bearer ", 0, 7)) {
+            String token = header.substring(7).trim();
+            if (!token.isEmpty()) {
+                return token;
+            }
+        }
+        String path = request.getRequestURI();
+        if (path == null || !path.contains("/live2d/tasks/") || !path.endsWith("/events")) {
+            return null;
+        }
+        String protocols = request.getHeader("Sec-WebSocket-Protocol");
+        if (protocols == null) {
+            return null;
+        }
+        for (String part : protocols.split(",")) {
+            String token = part.trim();
+            if (!token.isEmpty() && !token.equalsIgnoreCase("video-asset.bearer")) {
+                return token;
+            }
+        }
+        return null;
     }
 
     private void writeError(HttpServletResponse response, ObjectMapper mapper, ErrorCode code) throws IOException {

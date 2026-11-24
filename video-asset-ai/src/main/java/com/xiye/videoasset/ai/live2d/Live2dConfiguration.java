@@ -11,6 +11,7 @@ class Live2dConfiguration {
     @Bean("live2dScheduler")
     ThreadPoolTaskScheduler live2dScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(2);
         scheduler.setThreadNamePrefix("live2d-");
         return scheduler;
     }
