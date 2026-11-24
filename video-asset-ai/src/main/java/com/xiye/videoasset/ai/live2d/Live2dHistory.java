@@ -96,14 +96,9 @@ class Live2dHistory {
         if (nameLength < 1 || nameLength > 150 || name.codePoints().anyMatch(Character::isISOControl)) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
-        Boolean renamed = transaction.execute(status -> {
-            if (history.lockCharacter(project, character) == null) {
-                return false;
-            }
-            history.renameCharacter(project, character, name);
-            return true;
-        });
-        if (!Boolean.TRUE.equals(renamed)) {
+        int updated = history.renameCharacter(project, character, name);
+        // 数据库对“更新成相同名称”可能返回 0；再确认角色仍存在，避免把幂等修改误报为 404。
+        if (updated == 0 && !history.hasCharacter(project, character)) {
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
         LOG.info("Live2D 角色已重命名 projectId={} characterId={}", project, character);

@@ -3,6 +3,8 @@ package com.xiye.videoasset.common.web;
 import com.xiye.videoasset.common.BusinessException;
 import com.xiye.videoasset.common.ErrorCode;
 import com.xiye.videoasset.common.Result;
+import java.sql.SQLException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +51,7 @@ public class ApiExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    ResponseEntity<Result<Void>> unexpected(Exception exception) {
+    ResponseEntity<Result<Void>> unexpected(Exception exception, HttpServletRequest request) {
         if (exception instanceof ErrorResponse error) {
             // 保留框架的协议响应头，例如 HTTP 405 的 Allow，调用方可据此选择请求方法。
             return ResponseEntity.status(error.getStatusCode())
@@ -57,11 +59,41 @@ public class ApiExceptionHandler {
                     .body(new Result<>("HTTP_" + error.getStatusCode().value(), "Request failed", null));
         }
 
-        // 异常消息可能包含请求或上游响应内容，只记录异常类型和抛出位置。
+        // SQL 语句使用预编译参数；只记录脱敏后的数据库诊断信息，不输出请求体或绑定参数。
+        SQLException sqlFailure = findSqlException(exception);
+        if (sqlFailure != null) {
+            String message = safeMessage(sqlFailure.getMessage());
+            LOG.error("接口 SQL 执行失败 method={} path={} sqlState={} vendorCode={} message={}",
+                    request.getMethod(), request.getRequestURI(),
+                    sqlFailure.getSQLState(), sqlFailure.getErrorCode(), message,
+                    exception);
+            return respond(ErrorCode.INTERNAL_ERROR);
+        }
+
         StackTraceElement[] stackTrace = exception.getStackTrace();
         StackTraceElement failureLocation = stackTrace.length == 0 ? null : stackTrace[0];
-        LOG.error("接口处理异常 exceptionType={} location={}", exception.getClass().getName(), failureLocation);
+        LOG.error("接口处理异常 method={} path={} exceptionType={} location={}", request.getMethod(),
+                request.getRequestURI(), exception.getClass().getName(), failureLocation, exception);
         return respond(ErrorCode.INTERNAL_ERROR);
+    }
+
+    private static String safeMessage(String message) {
+        if (message == null) {
+            return "unknown";
+        }
+        String sanitized = message.replaceAll("[\\r\\n\\t]+", " ");
+        return sanitized.length() <= 400 ? sanitized : sanitized.substring(0, 400);
+    }
+
+    private static SQLException findSqlException(Throwable exception) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof SQLException sqlException) {
+                return sqlException;
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 
     private ResponseEntity<Result<Void>> respond(ErrorCode errorCode) {

@@ -103,7 +103,9 @@ GRANT SELECT, INSERT ON video_asset.live2d_model_file TO 'video_asset_ai'@'%';
 
 ```sql
 GRANT SELECT, INSERT ON video_asset.`character` TO 'video_asset_ai'@'%';
-GRANT UPDATE (live2d_version) ON video_asset.`character` TO 'video_asset_ai'@'%';
+GRANT UPDATE (live2d_version, name, deleted) ON video_asset.`character` TO 'video_asset_ai'@'%';
 GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_character_source TO 'video_asset_ai'@'%';
 GRANT SELECT, INSERT ON video_asset.live2d_model_version TO 'video_asset_ai'@'%';
 ```
+
+其中 `name` 用于角色重命名，`deleted` 用于角色软删除。部署到已有数据库时需以 DBA/迁移账号执行此授权；AI 运行账号本身不应持有授权其他账号的权限。
