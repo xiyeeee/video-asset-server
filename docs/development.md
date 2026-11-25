@@ -10,6 +10,19 @@ docker compose up -d
 docker compose ps -a
 ```
 
+`.env.example` 已为本地 Compose 启用 `MYSQL_DEV_SCHEMA_ACCESS=true`。MySQL 首次创建数据卷时会初始化 Media 和 AI 账号，并为 `video_asset` 库授予 `SELECT`、`INSERT`、`UPDATE`。之后 Flyway 新建的业务表也能直接访问。Auth 仍负责执行迁移。
+
+已有本地数据卷只需执行一次下方授权，保留现有数据和账号密码。默认账号名如下，使用自定义账号时按本地配置替换。
+
+```bash
+docker compose exec -T mysql sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot' <<'SQL'
+GRANT SELECT, INSERT, UPDATE ON `video\_asset`.* TO 'video_asset_media'@'%';
+GRANT SELECT, INSERT, UPDATE ON `video\_asset`.* TO 'video_asset_ai'@'%';
+SQL
+```
+
+`video-asset-verify` 项目执行同一命令时，在 `docker compose` 后加上 `--env-file .local/verify.env -p video-asset-verify`。生产库继续使用 [数据库文档](database.md) 中的按表权限。
+
 在 Nacos 3 控制台 `http://127.0.0.1:18848` 首次初始化 `nacos` 管理员密码，使用与 `.env` 中 `NACOS_PASSWORD` 一致的值。五个常驻容器应为 healthy，`minio-init` 完成后应退出且退出码为 0。端口冲突时编辑 `.env`，例如将 `NACOS_PORT` 和 `NACOS_GRPC_PORT` 配成 18849 和 19849。后者始终等于前者加 1000。
 
 生成仅用于开发验收的 RSA 密钥对，并构建工程。
