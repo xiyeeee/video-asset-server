@@ -21,6 +21,12 @@ public enum ErrorCode {
     EXTRACTION_TASK_CONFLICT(409, "任务标识已绑定其他提取参数"),
     LIVE2D_SAVE_NOT_RETRYABLE(409, "当前任务没有可重试保存的模型包"),
     LIVE2D_CHARACTER_BUSY(409, "角色仍有生成任务进行中，请稍后再删除"),
+    LIVE2D_COMBO_INVALID(400, "组合动作时间轴或来源素材无效"),
+    LIVE2D_COMBO_CONFLICT(409, "组合动作内容已变化或与当前模型版本不匹配"),
+    LIVE2D_COMBO_NOT_FOUND(404, "组合动作或来源素材不存在"),
+    LIVE2D_COMBO_SAVE_IN_PROGRESS(409, "组合动作正在保存，请稍后查询"),
+    LIVE2D_COMBO_SAVE_FAILED(503, "组合动作保存失败，可使用原请求标识重试"),
+    LIVE2D_COMBO_COMPILER_UNAVAILABLE(503, "组合动作编译服务暂不可用"),
     VIDEO_STORAGE_UNAVAILABLE(503, "视频存储暂不可用，请稍后重试"),
     INTERNAL_ERROR(500, "Internal server error");
 

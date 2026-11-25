@@ -145,10 +145,14 @@ class Live2dService {
     }
 
     String entryUrl(long project, long model, String manifest) {
+        return fileUrl(project, model, manifest);
+    }
+
+    String fileUrl(long project, long model, String path) {
         String ticket = newId() + newId();
         redis.opsForValue().set(TICKET + ticket, binding(project, model), ENTRY_TTL);
         return "/api/projects/" + project + "/live2d/models/" + model + "/files/" + ticket + "/"
-                + UriUtils.encodePath(manifest, StandardCharsets.UTF_8);
+                + UriUtils.encodePath(path, StandardCharsets.UTF_8);
     }
 
     ServedFile resource(long project, long model, String ticket, String path) {

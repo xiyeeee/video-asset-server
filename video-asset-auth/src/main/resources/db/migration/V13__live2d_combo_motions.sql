@@ -1,0 +1,61 @@
+CREATE TABLE live2d_combo_compilation (
+    id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    project_id BIGINT NOT NULL,
+    model_version_id BIGINT NOT NULL,
+    request_id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    content_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    duration_ms BIGINT UNSIGNED NOT NULL,
+    timeline_json JSON NOT NULL,
+    playback_json JSON NOT NULL,
+    issues_json JSON NOT NULL,
+    artifact_bucket VARCHAR(63) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    artifact_key VARBINARY(1024) NULL,
+    artifact_size BIGINT UNSIGNED NULL,
+    artifact_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    compile_status VARCHAR(16) NOT NULL,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_live2d_combo_compile_request (project_id, request_id),
+    KEY idx_live2d_combo_compile_project (project_id, model_version_id, created_at),
+    CONSTRAINT fk_live2d_combo_compile_project FOREIGN KEY (project_id) REFERENCES project(id),
+    CONSTRAINT fk_live2d_combo_compile_version FOREIGN KEY (model_version_id) REFERENCES live2d_model_version(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE live2d_combo_motion (
+    id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    project_id BIGINT NOT NULL,
+    model_version_id BIGINT NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    duration_ms BIGINT UNSIGNED NOT NULL,
+    content_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    timeline_json JSON NOT NULL,
+    playback_json JSON NOT NULL,
+    playback_bucket VARCHAR(63) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    playback_key VARBINARY(1024) NOT NULL,
+    playback_size BIGINT UNSIGNED NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    saved_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    KEY idx_live2d_combo_list (project_id, model_version_id, updated_at),
+    CONSTRAINT fk_live2d_combo_project FOREIGN KEY (project_id) REFERENCES project(id),
+    CONSTRAINT fk_live2d_combo_version FOREIGN KEY (model_version_id) REFERENCES live2d_model_version(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE live2d_combo_save_request (
+    project_id BIGINT NOT NULL,
+    request_id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    combo_id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    compilation_id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    content_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    operation VARCHAR(8) NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    error_code VARCHAR(80) NULL,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (project_id, request_id),
+    KEY idx_live2d_combo_save_status (status, updated_at),
+    CONSTRAINT fk_live2d_combo_save_project FOREIGN KEY (project_id) REFERENCES project(id),
+    CONSTRAINT fk_live2d_combo_save_compilation FOREIGN KEY (compilation_id) REFERENCES live2d_combo_compilation(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

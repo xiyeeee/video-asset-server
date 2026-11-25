@@ -109,3 +109,19 @@ GRANT SELECT, INSERT ON video_asset.live2d_model_version TO 'video_asset_ai'@'%'
 ```
 
 其中 `name` 用于角色重命名，`deleted` 用于角色软删除。部署到已有数据库时需以 DBA/迁移账号执行此授权；AI 运行账号本身不应持有授权其他账号的权限。
+
+## V13 Live2D 组合动作
+
+`live2d_combo_compilation` 记录编译输入快照、诊断、短时预览产物引用，保存前以 SHA-256 对齐时间轴和模型版本。
+`live2d_combo_motion` 保存可编辑时间轴、编译后的 Cubism `.motion3.json` 对象键和哈希；`live2d_combo_save_request` 记录保存状态和幂等键，失败请求保留用于同 requestId 重试。
+编译动作文件放在 `video-assets` 私有桶；音轨继续引用 `video-audio` 中现有 `AUDIO_TRACK`，不复制素材。
+
+让 Auth 执行 V13 后，为 AI 运行账号授权：
+
+```sql
+GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_combo_compilation TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_combo_motion TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_combo_save_request TO 'video_asset_ai'@'%';
+```
+
+接口字段、内部 Python 编译契约和完整示例见 [Live2D 组合动作 API](live2d-combo-motion-api.md)。
