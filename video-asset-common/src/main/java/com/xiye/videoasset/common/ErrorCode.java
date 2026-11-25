@@ -27,6 +27,11 @@ public enum ErrorCode {
     LIVE2D_COMBO_SAVE_IN_PROGRESS(409, "组合动作正在保存，请稍后查询"),
     LIVE2D_COMBO_SAVE_FAILED(503, "组合动作保存失败，可使用原请求标识重试"),
     LIVE2D_COMBO_COMPILER_UNAVAILABLE(503, "组合动作编译服务暂不可用"),
+    LIVE2D_MOTION_INVALID(400, "动作定义或版本引用无效"),
+    LIVE2D_MOTION_NOT_FOUND(404, "动作资产或版本不存在"),
+    LIVE2D_MOTION_VERSION_CONFLICT(409, "动作草稿已被其他请求修改"),
+    LIVE2D_MOTION_REFERENCE_INVALID(422, "动作引用必须指向当前项目可访问的已发布版本"),
+    LIVE2D_MOTION_COMPATIBILITY_UNAVAILABLE(503, "模型动作能力分析暂不可用"),
     VIDEO_STORAGE_UNAVAILABLE(503, "视频存储暂不可用，请稍后重试"),
     INTERNAL_ERROR(500, "Internal server error");
 

@@ -22,6 +22,7 @@ class Live2dComboPython {
     private static final Logger LOG = LoggerFactory.getLogger(Live2dComboPython.class);
     private static final String COMPILE = "/internal/v1/live2d/combo-motions/compile";
     private static final String CAPABILITIES = "/internal/v1/live2d/motion-capabilities";
+    private static final String MODEL_ANALYSIS = "/internal/v1/live2d/model-capabilities/analyze";
     private static final String TASK = "/internal/v1/live2d/motion-tasks/{taskId}";
     private final RestClient client;
     private final ObjectMapper json;
@@ -64,6 +65,26 @@ class Live2dComboPython {
             LOG.warn("Live2D 参数能力查询失败 modelVersionId={} exceptionType={}", modelVersionId,
                     exception.getClass().getSimpleName());
             throw new BusinessException(ErrorCode.LIVE2D_COMBO_COMPILER_UNAVAILABLE);
+        }
+    }
+
+    JsonNode analyzeModel(String modelVersionId, String manifestRef, String mocSha256) {
+        try {
+            JsonNode result = client.post().uri(MODEL_ANALYSIS)
+                    .body(new ModelRef(modelVersionId, manifestRef, mocSha256)).retrieve().body(JsonNode.class);
+            if (result == null || !modelVersionId.equals(result.path("modelVersionId").asText())) {
+                throw new AnalysisFailure("MODEL_ANALYSIS_RESPONSE_INVALID", "Python 能力分析响应不匹配");
+            }
+            return result;
+        } catch (RestClientResponseException exception) {
+            String code = upstreamCode(exception);
+            LOG.warn("Live2D 模型能力分析被拒绝 modelVersionId={} httpStatus={} upstreamCode={}", modelVersionId,
+                    exception.getStatusCode().value(), code);
+            throw new AnalysisFailure(code, "Python 模型能力分析失败");
+        } catch (RuntimeException exception) {
+            LOG.warn("Live2D 模型能力分析不可用 modelVersionId={} exceptionType={}", modelVersionId,
+                    exception.getClass().getSimpleName());
+            throw new AnalysisFailure("PYTHON_UNAVAILABLE", "Python 模型能力分析暂不可用");
         }
     }
 
@@ -179,6 +200,15 @@ class Live2dComboPython {
         return new BusinessException(ErrorCode.LIVE2D_COMBO_COMPILER_UNAVAILABLE);
     }
 
+    private String upstreamCode(RestClientResponseException exception) {
+        try {
+            JsonNode error = json.readTree(exception.getResponseBodyAsString());
+            return error.path("detail").path("code").asText("UPSTREAM_ERROR");
+        } catch (RuntimeException | java.io.IOException ignored) {
+            return "UPSTREAM_ERROR";
+        }
+    }
+
     record ModelRef(String modelVersionId, String modelManifestRef, String modelMocSha256) {
     }
 
@@ -225,5 +255,18 @@ class Live2dComboPython {
 
     record Reply(String requestId, int compilerVersion, String status, long durationMs, List<Issue> issues,
                  List<String> missingCapabilities, JsonNode playbackManifest) {
+    }
+
+    static final class AnalysisFailure extends RuntimeException {
+        private final String code;
+
+        AnalysisFailure(String code, String message) {
+            super(message);
+            this.code = code;
+        }
+
+        String code() {
+            return code;
+        }
     }
 }

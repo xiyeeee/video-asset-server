@@ -125,3 +125,37 @@ GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_combo_save_request TO 'video_
 ```
 
 接口字段、内部 Python 编译契约和完整示例见 [Live2D 组合动作 API](live2d-combo-motion-api.md)。
+
+## V14 Live2D 动作资产和能力映射
+
+`live2d_motion_asset` 保存官方/项目动作目录，`live2d_motion_version` 区分草稿和不可变发布版本，`live2d_motion_reference` 固定组合片段引用的动作版本或音轨 asset。`live2d_model_parameter` 与 `live2d_model_capability_mapping` 按 MOC3 版本保存 Python 实测参数及用户候选/确认映射。当前幂等种子覆盖 Python 已实现的 blink、smile、nod 以及 speech handoff。
+
+让 Auth 执行 V14 后，为 AI 运行账号授权：
+
+```sql
+GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_motion_asset TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_motion_version TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, DELETE ON video_asset.live2d_motion_reference TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON video_asset.live2d_model_parameter TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON video_asset.live2d_model_capability_mapping TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON video_asset.live2d_model_analysis_failure TO 'video_asset_ai'@'%';
+```
+
+API 和剧情引用格式见 [Live2D 动作资产 API](live2d-motion-assets-api.md)。
+
+## V14 Live2D 动作资产目录与模型兼容映射
+
+`live2d_motion_asset` 保存官方基础动作和项目自定义动作/组合反应，`live2d_motion_version` 将草稿修订与不可变已发布版本分开。`live2d_motion_reference` 固定组合片段引用的动作版本或音轨素材 ID；发布版本不会跟随来源动作升级。
+`live2d_model_parameter`、`live2d_model_capability_mapping` 按模型版本保存 Python Core 实测参数和候选/确认映射。V14 幂等种子使用 Python 当前可编译的 blink/smile/nod，以及 speech 音频交接定义。
+
+先由 Auth 执行 V14，再为 AI 运行账号授权：
+
+```sql
+GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_motion_asset TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, UPDATE ON video_asset.live2d_motion_version TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, DELETE ON video_asset.live2d_motion_reference TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON video_asset.live2d_model_parameter TO 'video_asset_ai'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON video_asset.live2d_model_capability_mapping TO 'video_asset_ai'@'%';
+```
+
+动作目录、草稿/发布、版本兼容和剧情引用示例见 [Live2D 动作资产 API](live2d-motion-assets-api.md)。

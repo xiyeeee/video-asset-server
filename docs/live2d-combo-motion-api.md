@@ -2,6 +2,8 @@
 
 本文件是三端共享契约。浏览器只调用 Java 鉴权 API。Java 校验项目、固定模型版本、动作/台词素材后调用 Python；Python 检查模型参数绑定，生成可被 Cubism 直接播放的组合 `.motion3.json`。Java 将该产物写入 MinIO 并保存可编辑时间轴，两者以同一内容摘要和模型版本关联。
 
+可复用的基础动作、动作版本、模型能力映射和剧情版本引用约定见 [Live2D 动作资产 API](live2d-motion-assets-api.md)。
+
 所有时间值为整数毫秒。`startTimeMs` 是片段在组合时间轴上的位置；对白的 `sourceStartMs` 是相对原音轨的裁剪起点。总时长最大 120000 ms、最多 32 段，每段至少 2 ms。项目、模型、素材 ID 为十进制字符串；requestId、compilationId、comboId、segmentId 是 32 位小写十六进制字符串。Java API 使用 `Authorization: Bearer <accessToken>`，只能访问当前用户拥有的项目。
 
 ## 1. 查询素材来源

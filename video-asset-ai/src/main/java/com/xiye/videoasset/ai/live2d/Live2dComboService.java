@@ -104,6 +104,43 @@ class Live2dComboService {
         }
     }
 
+    Capabilities inspectCapabilities(String subject, long project, long modelVersionId) {
+        live2d.owned(subject, project);
+        ModelVersion version = requireModel(project, modelVersionId);
+        String stageName = "capabilities-" + newId();
+        PreparedRoots roots = preparedRoots(stageName);
+        try {
+            StagedModel model = stageModel(project, version, roots.output());
+            return python.capabilities(Long.toString(modelVersionId), model.manifestRef(), model.mocSha256());
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.VIDEO_STORAGE_UNAVAILABLE);
+        } finally {
+            cleanup(roots.output(), stageName);
+            cleanup(roots.input(), stageName);
+        }
+    }
+
+    JsonNode inspectModelAnalysis(String subject, long project, long modelVersionId) {
+        live2d.owned(subject, project);
+        ModelVersion version = requireModel(project, modelVersionId);
+        String stageName = "analysis-" + newId();
+        PreparedRoots roots = preparedRoots(stageName);
+        try {
+            StagedModel model = stageModel(project, version, roots.output());
+            return python.analyzeModel(Long.toString(modelVersionId), model.manifestRef(), model.mocSha256());
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.VIDEO_STORAGE_UNAVAILABLE);
+        } finally {
+            cleanup(roots.output(), stageName);
+            cleanup(roots.input(), stageName);
+        }
+    }
+
+    void ensureModelVersion(String subject, long project, long modelVersionId) {
+        live2d.owned(subject, project);
+        requireModel(project, modelVersionId);
+    }
+
     CompileView compile(String subject, long project, CompileRequest request) {
         live2d.owned(subject, project);
         requireRequestId(request.requestId());
